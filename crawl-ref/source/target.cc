@@ -11,6 +11,7 @@
 #include "english.h"
 #include "env.h"
 #include "fight.h"
+#include "god-abil.h"
 #include "libutil.h"
 #include "los-def.h"
 #include "losglobal.h"
@@ -237,6 +238,11 @@ bool targeter_beam::affects_monster(const monster_info& mon)
         return false;
     }
 
+    // beckoning is useless against adjacent mons!
+    // XXX: this should probably be somewhere else
+    if (beam.flavour == BEAM_BECKONING)
+        return grid_distance(mon.pos, you.pos()) > 1;
+
     return !beam.is_harmless(m) || beam.nice_to(mon)
     // Inner flame affects allies without harming or helping them.
            || beam.flavour == BEAM_INNER_FLAME && !m->is_summoned();
@@ -458,6 +464,33 @@ aff_type targeter_smite::is_affected(coord_def loc)
     return AFF_NO;
 }
 
+targeter_walljump::targeter_walljump() :
+    targeter_smite(&you, LOS_RADIUS, 1, 1, false, nullptr)
+{
+}
+
+bool targeter_walljump::valid_aim(coord_def a)
+{
+    return wu_jian_can_wall_jump(a, why_not);
+}
+
+aff_type targeter_walljump::is_affected(coord_def loc)
+{
+    if (!valid_aim(aim))
+        return AFF_NO;
+
+    auto wall_jump_direction = (you.pos() - aim).sgn();
+    auto wall_jump_landing_spot = (you.pos() + wall_jump_direction
+                                   + wall_jump_direction);
+    if (loc == wall_jump_landing_spot)
+        return AFF_YES;
+
+    if (loc.distance_from(wall_jump_landing_spot) == 1 && monster_at(loc))
+        return AFF_YES;
+
+    return AFF_NO;
+}
+
 targeter_transference::targeter_transference(const actor* act, int aoe) :
     targeter_smite(act, LOS_RADIUS, aoe, aoe, false, nullptr)
 {
@@ -498,8 +531,8 @@ bool targeter_fragment::valid_aim(coord_def a)
 
     bolt tempbeam;
     bool temp;
-    if (!setup_fragmentation_beam(tempbeam, pow, agent, a, false,
-                                  true, true, nullptr, temp, temp))
+    if (!setup_fragmentation_beam(tempbeam, pow, agent, a, true, nullptr, temp,
+                                  temp))
     {
         return notify_fail("You cannot affect that.");
     }
@@ -514,12 +547,10 @@ bool targeter_fragment::set_aim(coord_def a)
     bolt tempbeam;
     bool temp;
 
-    if (setup_fragmentation_beam(tempbeam, pow, agent, a, false,
-                                 false, true, nullptr, temp, temp))
+    if (setup_fragmentation_beam(tempbeam, pow, agent, a, true, nullptr, temp,
+                                 temp))
     {
         exp_range_min = tempbeam.ex_size;
-        setup_fragmentation_beam(tempbeam, pow, agent, a, false,
-                                 true, true, nullptr, temp, temp);
         exp_range_max = tempbeam.ex_size;
     }
     else
@@ -1023,8 +1054,7 @@ bool targeter_shadow_step::valid_landing(coord_def a, bool check_invis)
     actor *act;
     ray_def ray;
 
-    if (grd(a) == DNGN_OPEN_SEA || grd(a) == DNGN_LAVA_SEA
-        || !agent->is_habitable(a))
+    if (!agent->is_habitable(a))
     {
         blocked_landing_reason = BLOCKED_MOVE;
         return false;
@@ -1347,6 +1377,9 @@ aff_type targeter_shotgun::is_affected(coord_def loc)
 targeter_monster_sequence::targeter_monster_sequence(const actor *act, int pow, int r) :
                           targeter_beam(act, r, ZAP_DEBUGGING_RAY, pow, 0, 0)
 {
+    // for `path_taken` to be set properly, the beam needs to be piercing, and
+    // ZAP_DEBUGGING_RAY is not.
+    beam.pierce = true;
 }
 
 bool targeter_monster_sequence::set_aim(coord_def a)

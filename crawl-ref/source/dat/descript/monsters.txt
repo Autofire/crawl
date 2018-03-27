@@ -6,9 +6,9 @@ It has been enchanted to dance through the air and attack under its own power.
 # Uniques
 Agnes
 
-This spriggan is aged and weathered from years of travel in distant lands. Her
-exotic weapon and astonishing speed both speak to the training she received
-there. Underestimate her at your peril!
+This spriggan is aged and weathered from years of travel away from the forests
+and swamps that are home to her kin. Her choice of weapon and astonishing speed
+both speak to the training she underwent. Underestimate her at your peril!
 %%%%
 Aizul
 
@@ -35,7 +35,7 @@ them.
 Asmodeus
 
 Greatest and most cunning of the Lords of Hell, Asmodeus was born when the twin
-fires of greed and treachery first sparked to life within a mortal’s heart.
+fires of greed and treachery first sparked to life within a mortal's heart.
 His hideous body is perpetually wreathed in flame.
 %%%%
 Asterion
@@ -585,7 +585,7 @@ balrug
 
 A huge and very powerful demon, wreathed in fire and shadows.
 %%%%
-barachian
+barachi
 
 An amphibious humanoid with a very ugly attitude.
 %%%%
@@ -937,7 +937,7 @@ its victim's trails.
 draconian
 
 A brown-scaled humanoid with a reptilian tail and small wings. It is yet to
-develop the distinct colouring and powerful breath weapon of its mature form.
+develop the distinct colouring and powerful breath attack of its mature form.
 %%%%
 draconian annihilator
 
@@ -975,8 +975,6 @@ dream sheep
 A drowsy, fluffy ovine whose coat sparkles with motes of dream dust. It gathers
 in herds and fills the air with dream dust, overwhelming its victims and
 putting them to sleep.
-
-Its wool looks quite flammable.
 %%%%
 drowned soul
 
@@ -1780,8 +1778,8 @@ orb of destruction
 
 A conjured globe of pure magic that homes onto a designated target, albeit with
 massive inertia. A smart and agile person may move out of its path, causing it
-to miss its target or damage its surroundings. It cannot be avoided by Dodging
-skill, and is able to make sharp turns to hit adjacent targets.
+to miss its target. It cannot be avoided by Dodging skill, and is able to make
+sharp turns to hit adjacent targets.
 %%%%
 orb of fire
 
@@ -2767,12 +2765,6 @@ fire elementalist statue
 An ornately worked statue of an orc holding a torch aloft, hewn from black
 basalt. The air around it shimmers.
 %%%%
-firespitter statue
-
-A statue of a large humanoid head, roughly cut from greyish gabbro. Its mouth
-is blackened with scorch-marks, and there is a faint ember glow in its empty
-eyes.
-%%%%
 flesh golem
 
 An animated mound of misshapen flesh, sculpted over an iron skeleton.
@@ -2800,10 +2792,6 @@ An undead creature in the shape of a bat, made of ice.
 kamikaze kobold
 
 A kobold that has been enchanted to explode in a blaze of fire.
-%%%%
-lasher statue
-
-A statue depicting a savage-looking slave driver with a vicious barbed whip.
 %%%%
 mad acolyte of Lugonu
 

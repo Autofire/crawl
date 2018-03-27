@@ -9,8 +9,10 @@
 
 #include <sstream>
 
+#include "areas.h"
 #include "artefact.h"
 #include "attitude-change.h"
+#include "cleansing-flame-source-type.h"
 #include "coordit.h"
 #include "database.h"
 #include "decks.h"
@@ -22,6 +24,7 @@
 #include "god-abil.h"
 #include "god-passive.h" // shadow_monster
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "makeitem.h"
 #include "message.h"
@@ -85,6 +88,7 @@ static const char *_god_wrath_adjectives[] =
     "progress",         // Pakellas
     "fury",             // Uskayaw
     "memory",           // Hepliaklqana (unused)
+    "rancor",           // Wu Jian
 };
 COMPILE_CHECK(ARRAYSZ(_god_wrath_adjectives) == NUM_GODS);
 
@@ -100,8 +104,9 @@ COMPILE_CHECK(ARRAYSZ(_god_wrath_adjectives) == NUM_GODS);
  */
 static string _god_wrath_name(god_type god)
 {
-    const bool use_full_name = god == GOD_FEDHAS; // fedhas is very formal.
-                                                  // apparently.
+    const bool use_full_name = god == GOD_FEDHAS      // fedhas is very formal.
+                               || god == GOD_WU_JIAN; // apparently.
+
     return make_stringf("the %s of %s",
                         _god_wrath_adjectives[god],
                         god_name(god, use_full_name).c_str());
@@ -267,7 +272,7 @@ static bool _tso_retribution()
 
 static void _zin_remove_good_mutations()
 {
-    if (!how_mutated())
+    if (!you.how_mutated())
         return;
 
     const god_type god = GOD_ZIN;
@@ -290,7 +295,7 @@ static void _zin_remove_good_mutations()
             failMsg = false;
     }
 
-    if (success && !how_mutated())
+    if (success && !you.how_mutated())
         simple_god_message(" rids your body of chaos!", god);
 }
 
@@ -302,7 +307,7 @@ static bool _zin_retribution()
     int punishment = random2(8);
 
     // If not mutated, do something else instead.
-    if (punishment > 7 && !how_mutated())
+    if (punishment > 7 && !you.how_mutated())
         punishment = random2(6);
 
     switch (punishment)
@@ -387,7 +392,6 @@ static bool _cheibriados_retribution()
         if (you.duration[DUR_SLOW] < 180 * BASELINE_DELAY)
         {
             mprf(MSGCH_WARN, "You feel the world leave you behind!");
-            you.set_duration(DUR_EXHAUSTED, 200);
             slow_player(100);
         }
         break;
@@ -638,14 +642,14 @@ static bool _kikubaaqudgha_retribution()
     }
     else if (random2(you.experience_level) >= 4)
     {
-        // necromancy miscast, 20% chance of additional miscast
-        do
+        // necromancy miscast, 25% chance of additional miscast
+        const int num_miscasts = one_chance_in(4) ? 2 : 1;
+        for (int i = 0; i < num_miscasts; i++)
         {
             MiscastEffect(&you, nullptr, GOD_MISCAST + god, SPTYP_NECROMANCY,
-                          2 + div_rand_round(you.experience_level, 9),
-                          random2avg(88, 3), _god_wrath_name(god));
+                      2 + div_rand_round(you.experience_level, 9),
+                      random2avg(88, 3), _god_wrath_name(god));
         }
-        while (one_chance_in(5));
     }
 
     // Every act of retribution causes corpses in view to rise against
@@ -775,8 +779,7 @@ static bool _trog_retribution()
         case 5:
             if (you.duration[DUR_SLOW] < 180 * BASELINE_DELAY)
             {
-                mprf(MSGCH_WARN, "You suddenly feel exhausted!");
-                you.set_duration(DUR_EXHAUSTED, 200);
+                mprf(MSGCH_WARN, "You suddenly feel lethargic!");
                 slow_player(100);
             }
             break;
@@ -929,30 +932,22 @@ static bool _sif_muna_retribution()
     {
     case 0:
     case 1:
+    case 2:
         lose_stat(STAT_INT, 1 + random2(you.intel() / 5));
         break;
 
-    case 2:
     case 3:
     case 4:
+    case 5:
         confuse_player(5 + random2(3));
         break;
 
-    case 5:
     case 6:
-        MiscastEffect(&you, nullptr, GOD_MISCAST + god, SPTYP_DIVINATION, 9, 90,
-                      _god_wrath_name(god));
-        break;
-
     case 7:
     case 8:
-        if (you.magic_points > 0
-#if TAG_MAJOR_VERSION == 34
-                 || you.species == SP_DJINNI
-#endif
-                )
+        if (you.magic_points > 0)
         {
-            drain_mp(100);  // This should zero it.
+            dec_mp(you.magic_points);
             canned_msg(MSG_MAGIC_DRAIN);
         }
         break;
@@ -1185,7 +1180,7 @@ static void _jiyva_remove_slime_mutation()
     for (int i = 0; i < NUM_MUTATIONS; ++i)
     {
         if (is_slime_mutation(static_cast<mutation_type>(i))
-            && you.mutation[i] > 0)
+            && you.has_mutation(static_cast<mutation_type>(i)))
         {
             slimy = true;
         }
@@ -1547,7 +1542,7 @@ static void _qazlal_elemental_vulnerability()
     const god_type god = GOD_QAZLAL;
 
     if (mutate(RANDOM_QAZLAL_MUTATION, _god_wrath_name(god), false,
-               false, true, false, MUTCLASS_TEMPORARY, true))
+               false, true, false, MUTCLASS_TEMPORARY))
     {
         simple_god_message(" strips away your elemental protection.",
                            god);
@@ -1583,35 +1578,86 @@ static bool _qazlal_retribution()
     return true;
 }
 
-bool drain_wands()
-{
-    vector<string> wands;
-    for (auto &wand : you.inv)
-    {
-        if (!wand.defined() || wand.base_type != OBJ_WANDS)
-            continue;
-
-        const int charges = wand.plus;
-        if (charges > 0 && coinflip())
-        {
-            const int charge_val = wand_charge_value(wand.sub_type);
-            wand.plus -= min(1 + random2(charge_val), charges);
-            // Display new number of charges when messaging.
-            wands.push_back(wand.name(DESC_PLAIN));
-        }
-    }
-    if (wands.empty())
-        return false;
-
-    mpr_comma_separated_list("Magical energy is drained from your ", wands);
-    return true;
-}
-
 static bool _choose_hostile_monster(const monster& mon)
 {
     return mon.attitude == ATT_HOSTILE;
 }
 
+static int _wu_jian_summon_weapons()
+{
+    god_type god = GOD_WU_JIAN;
+    const int num = 3 + random2(3);
+    int created = 0;
+
+    for (int i = 0; i < num; ++i)
+    {
+        const int subtype = random_choose(WPN_DIRE_FLAIL, WPN_QUARTERSTAFF,
+                                          WPN_BROAD_AXE, WPN_GREAT_SWORD,
+                                          WPN_RAPIER, WPN_GLAIVE);
+        const int ego = random_choose(SPWPN_VORPAL, SPWPN_FLAMING,
+                                      SPWPN_FREEZING, SPWPN_ELECTROCUTION,
+                                      SPWPN_SPEED);
+
+        if (monster *mon =
+            create_monster(_wrath_mon_data(MONS_DANCING_WEAPON, god)))
+        {
+            ASSERT(mon->weapon() != nullptr);
+            item_def& wpn(*mon->weapon());
+
+            set_item_ego_type(wpn, OBJ_WEAPONS, ego);
+
+            wpn.plus = random2(5);
+            wpn.sub_type = subtype;
+
+            set_ident_flags(wpn, ISFLAG_KNOW_TYPE);
+
+            item_colour(wpn);
+
+            ghost_demon newstats;
+            newstats.init_dancing_weapon(wpn, you.experience_level * 50 / 9);
+
+            mon->set_ghost(newstats);
+            mon->ghost_demon_init();
+
+            created++;
+        }
+    }
+
+    return created;
+}
+
+static bool _wu_jian_retribution()
+{
+    god_type god = GOD_WU_JIAN;
+
+    if (_wu_jian_summon_weapons())
+    {
+        switch (random2(4))
+        {
+        case 0:
+            wu_jian_sifu_message(" says: Die by a thousand cuts!");
+            you.set_duration(DUR_BARBS, random_range(5, 10));
+            break;
+        case 1:
+            wu_jian_sifu_message(" whispers: Nowhere to run...");
+            you.set_duration(DUR_SLOW, random_range(5, 10));
+            break;
+        case 2:
+            wu_jian_sifu_message(" whispers: These will loosen your tongue!");
+            you.increase_duration(DUR_SILENCE, 5 + random2(11), 50);
+            invalidate_agrid(true);
+            break;
+        case 3:
+            wu_jian_sifu_message(" says: Suffer, mortal!");
+            you.corrode_equipment(_god_wrath_name(god).c_str(), 2);
+            break;
+        }
+    }
+    else
+        simple_god_message("'s divine weapons fail to arrive.", god);
+
+    return true;
+}
 
 static bool _uskayaw_retribution()
 {
@@ -1698,6 +1744,7 @@ bool divine_retribution(god_type god, bool no_bonus, bool force)
     case GOD_DITHMENOS:     do_more = _dithmenos_retribution(); break;
     case GOD_QAZLAL:        do_more = _qazlal_retribution(); break;
     case GOD_USKAYAW:       do_more = _uskayaw_retribution(); break;
+    case GOD_WU_JIAN:       do_more = _wu_jian_retribution(); break;
 
     case GOD_ASHENZARI:
     case GOD_ELYVILON:

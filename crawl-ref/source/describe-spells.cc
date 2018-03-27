@@ -19,6 +19,7 @@
 #include "monster.h" // SEEN_SPELLS_KEY
 #include "prompt.h"
 #include "religion.h"
+#include "shopping.h"
 #include "spl-book.h"
 #include "spl-util.h"
 #include "stringutil.h"
@@ -484,7 +485,7 @@ static void _describe_book(const spellbook_contents &book,
 
     // only display header for book spells
     if (source_item)
-        description.cprintf("\n Spells                             Type                      Level");
+        description.cprintf("\n Spells                           Type                      Level");
     description.cprintf("\n");
 
     // list spells in two columns, instead of one? (monster books)
@@ -509,10 +510,11 @@ static void _describe_book(const spellbook_contents &book,
 #endif
             && (get_spell_flags(spell) & SPFLAG_MR_CHECK))
         {
+            int chance = hex_chance(spell, hd);
+            int ch_len = to_string(chance).length();
             description.cprintf("%c - (%d%%) %s",
-                            spell_letter,
-                            hex_chance(spell, hd),
-                            chop_string(spell_title(spell), 22).c_str());
+                            spell_letter, chance,
+                            chop_string(spell_title(spell), 25-ch_len).c_str());
         }
         else
         {
@@ -605,7 +607,9 @@ void list_spellset(const spellset &spells, const monster_info *mon_owner,
 {
     const bool can_memorise = source_item
                               && source_item->base_type == OBJ_BOOKS
-                              && in_inventory(*source_item);
+                              && (in_inventory(*source_item)
+                                  || source_item->pos == you.pos()
+                                     && !is_shop_item(*source_item));
 
     formatted_string &description = initial_desc;
     describe_spellset(spells, source_item, description, mon_owner);
@@ -614,7 +618,7 @@ void list_spellset(const spellset &spells, const monster_info *mon_owner,
 
     description.cprintf("Select a spell to read its description");
     if (can_memorise)
-        description.cprintf(" or to to memorise it");
+        description.cprintf(" or to memorise it");
     description.cprintf(".\n");
 
     spell_scroller ssc(spells, mon_owner, source_item);

@@ -68,11 +68,11 @@ static unsigned char _kmod_to_mod(int modifier)
 {
     unsigned char mod = 0;
     if (modifier & KMOD_SHIFT)
-        mod |= MOD_SHIFT;
+        mod |= TILES_MOD_SHIFT;
     if (modifier & KMOD_CTRL)
-        mod |= MOD_CTRL;
+        mod |= TILES_MOD_CTRL;
     if (modifier & KMOD_LALT)
-        mod |= MOD_ALT;
+        mod |= TILES_MOD_ALT;
     return mod;
 }
 
@@ -82,15 +82,15 @@ static unsigned char _get_modifiers(SDL_Keysym &keysym)
     {
     case SDLK_LSHIFT:
     case SDLK_RSHIFT:
-        return MOD_SHIFT;
+        return TILES_MOD_SHIFT;
         break;
     case SDLK_LCTRL:
     case SDLK_RCTRL:
-        return MOD_CTRL;
+        return TILES_MOD_CTRL;
         break;
     case SDLK_LALT:
     case SDLK_RALT:
-        return MOD_ALT;
+        return TILES_MOD_ALT;
         break;
     default:
         return _kmod_to_mod(keysym.mod);
@@ -118,19 +118,12 @@ static void _translate_window_event(const SDL_WindowEvent &sdl_event,
             tile_event.resize.w = sdl_event.data1;
             tile_event.resize.h = sdl_event.data2;
             break;
+        case SDL_WINDOWEVENT_MOVED:
+            tile_event.type = WME_MOVE;
+            break;
         default:
             tile_event.type = WME_NOEVENT;
             break;
-    }
-}
-
-// Suppress the SDL_TEXTINPUT event from this keypress. XXX: hacks
-static void _suppress_textinput()
-{
-    if (SDL_IsTextInputActive())
-    {
-        SDL_StopTextInput();
-        SDL_StartTextInput();
     }
 }
 
@@ -161,9 +154,9 @@ static int _translate_keysym(SDL_Keysym &keysym)
 
     int offset = mod ? 1000 + 256 * mod : 0;
     int numpad_offset = 0;
-    if (mod == MOD_CTRL)
+    if (mod == TILES_MOD_CTRL)
         numpad_offset = ctrl_offset;
-    else if (mod == MOD_SHIFT)
+    else if (mod == TILES_MOD_SHIFT)
         numpad_offset = shift_offset;
     else
         numpad_offset = offset;
@@ -222,7 +215,7 @@ static int _translate_keysym(SDL_Keysym &keysym)
         ASSERT_RANGE(keysym.sym, SDLK_F1, SDLK_UNDO + 1);
         return -(keysym.sym + (SDLK_UNDO - SDLK_F1 + 1) * mod);
 
-        // Hack.  libw32c overloads clear with '5' too.
+        // Hack. libw32c overloads clear with '5' too.
     case SDLK_KP_5:
         return CK_CLEAR + numpad_offset;
 
@@ -270,14 +263,14 @@ static int _translate_keysym(SDL_Keysym &keysym)
         break;
     }
 
-    if (!(mod & (MOD_CTRL | MOD_ALT)))
+    if (!(mod & (TILES_MOD_CTRL | TILES_MOD_ALT)))
         return 0;
 
     int ret = keysym.sym;
 
-    if (mod & MOD_ALT && keysym.sym >= 128)
+    if (mod & TILES_MOD_ALT && keysym.sym >= 128)
         ret -= 3000; // ???
-    if (mod & MOD_CTRL)
+    if (mod & TILES_MOD_CTRL)
         ret -= SDLK_a - 1; // XXX: this might break for strange keysyms
 
     return ret;
@@ -325,7 +318,7 @@ static void _translate_wheel_event(const SDL_MouseWheelEvent &sdl_event,
                                    MouseEvent &tile_event)
 {
     tile_event.held  = MouseEvent::NONE;
-    tile_event.event = MouseEvent::PRESS; // XXX
+    tile_event.event = MouseEvent::WHEEL;
     tile_event.button = (sdl_event.y > 0) ? MouseEvent::SCROLL_DOWN
                                           : MouseEvent::SCROLL_UP;
     tile_event.px = sdl_event.x;
@@ -333,7 +326,7 @@ static void _translate_wheel_event(const SDL_MouseWheelEvent &sdl_event,
 }
 
 SDLWrapper::SDLWrapper():
-    m_window(nullptr), m_context(nullptr)
+    m_window(nullptr), m_context(nullptr), prev_keycode(0)
 {
 }
 
@@ -346,7 +339,7 @@ SDLWrapper::~SDLWrapper()
     SDL_Quit();
 }
 
-int SDLWrapper::init(coord_def *m_windowsz, int *densityNum, int *densityDen)
+int SDLWrapper::init(coord_def *m_windowsz)
 {
 #ifdef __ANDROID__
     // Do SDL initialization
@@ -412,8 +405,8 @@ int SDLWrapper::init(coord_def *m_windowsz, int *densityNum, int *densityDen)
         const int x = Options.tile_window_width;
         const int y = Options.tile_window_height;
         // By default, fill the whole screen.
-        m_windowsz->x = (x > 0) ? x : _desktop_width + x;
-        m_windowsz->y = (y > 0) ? y : _desktop_height + y;
+        m_windowsz->x = (x > 0) ? x : _desktop_width;
+        m_windowsz->y = (y > 0) ? y : _desktop_height;
     }
     else
     {
@@ -468,6 +461,7 @@ int SDLWrapper::init(coord_def *m_windowsz, int *densityNum, int *densityDen)
     SDL_GetWindowSize(m_window, &x, &y);
     m_windowsz->x = x;
     m_windowsz->y = y;
+    init_hidpi();
 #ifdef __ANDROID__
 # ifndef TOUCH_UI
     SDL_StartTextInput();
@@ -476,10 +470,11 @@ int SDLWrapper::init(coord_def *m_windowsz, int *densityNum, int *densityDen)
 #endif
 
     SDL_GL_GetDrawableSize(m_window, &x, &y);
-    *densityNum = x;
-    *densityDen = m_windowsz->x;
     SDL_SetWindowMinimumSize(m_window, MIN_SDL_WINDOW_SIZE_X,
                              MIN_SDL_WINDOW_SIZE_Y);
+
+    SDL_EnableScreenSaver();
+
     return true;
 }
 
@@ -581,9 +576,19 @@ void SDLWrapper::set_window_placement(coord_def *m_windowsz)
 }
 #endif
 
+bool SDLWrapper::init_hidpi()
+{
+    coord_def windowsz;
+    coord_def drawablesz;
+    SDL_GetWindowSize(m_window, &(windowsz.x), &(windowsz.y));
+    SDL_GL_GetDrawableSize(m_window, &(drawablesz.x), &(drawablesz.y));
+    return display_density.update(drawablesz.x, windowsz.x);
+}
+
 void SDLWrapper::resize(coord_def &m_windowsz)
 {
     coord_def m_drawablesz;
+    init_hidpi();
     SDL_GL_GetDrawableSize(m_window, &(m_drawablesz.x), &(m_drawablesz.y));
     glmanager->reset_view_for_resize(m_windowsz, m_drawablesz);
 }
@@ -593,7 +598,7 @@ unsigned int SDLWrapper::get_ticks() const
     return SDL_GetTicks();
 }
 
-key_mod SDLWrapper::get_mod_state() const
+tiles_key_mod SDLWrapper::get_mod_state() const
 {
     SDL_Keymod mod = SDL_GetModState();
 
@@ -601,37 +606,37 @@ key_mod SDLWrapper::get_mod_state() const
     {
     case KMOD_LSHIFT:
     case KMOD_RSHIFT:
-        return MOD_SHIFT;
+        return TILES_MOD_SHIFT;
         break;
     case KMOD_LCTRL:
     case KMOD_RCTRL:
-        return MOD_CTRL;
+        return TILES_MOD_CTRL;
         break;
     case KMOD_LALT:
     case KMOD_RALT:
-        return MOD_ALT;
+        return TILES_MOD_ALT;
         break;
     case KMOD_NONE:
     default:
-        return MOD_NONE;
+        return TILES_MOD_NONE;
     }
 }
 
-void SDLWrapper::set_mod_state(key_mod mod)
+void SDLWrapper::set_mod_state(tiles_key_mod mod)
 {
     SDL_Keymod set_to;
     switch (mod)
     {
-    case MOD_NONE:
+    case TILES_MOD_NONE:
         set_to = KMOD_NONE;
         break;
-    case MOD_SHIFT:
+    case TILES_MOD_SHIFT:
         set_to = KMOD_LSHIFT;
         break;
-    case MOD_CTRL:
+    case TILES_MOD_CTRL:
         set_to = KMOD_LCTRL;
         break;
-    case MOD_ALT:
+    case TILES_MOD_ALT:
         set_to = KMOD_LALT;
         break;
     default:
@@ -642,11 +647,97 @@ void SDLWrapper::set_mod_state(key_mod mod)
     SDL_SetModState(set_to);
 }
 
+static char32_t _key_suppresses_textinput(int keycode)
+{
+    char result_char = 0;
+    char32_t result = 0;
+    switch (keycode)
+    {
+    case SDLK_KP_5:
+    case SDLK_CLEAR:
+        result_char = '5';
+        break;
+    case SDLK_KP_8:
+    case SDLK_UP:
+        result_char = '8';
+        break;
+    case SDLK_KP_2:
+    case SDLK_DOWN:
+        result_char = '2';
+        break;
+    case SDLK_KP_4:
+    case SDLK_LEFT:
+        result_char = '4';
+        break;
+    case SDLK_KP_6:
+    case SDLK_RIGHT:
+        result_char = '6';
+        break;
+    case SDLK_KP_0:
+    case SDLK_INSERT:
+        result_char = '0';
+        break;
+    case SDLK_KP_7:
+    case SDLK_HOME:
+        result_char = '7';
+        break;
+    case SDLK_KP_1:
+    case SDLK_END:
+        result_char = '1';
+        break;
+    case SDLK_KP_9:
+    case SDLK_PAGEUP:
+        result_char = '9';
+        break;
+    case SDLK_KP_3:
+    case SDLK_PAGEDOWN:
+        result_char = '3';
+        break;
+    }
+    if (result_char)
+        utf8towc(&result, &result_char);
+    return result;
+}
+
+int SDLWrapper::send_textinput(wm_event *event)
+{
+    event->type = WME_KEYPRESS;
+    do
+    {
+        // pop a key off the input queue
+        char32_t wc;
+        int wc_bytelen = utf8towc(&wc, m_textinput_queue.c_str());
+        m_textinput_queue.erase(0, wc_bytelen);
+
+        if (prev_keycode && _key_suppresses_textinput(prev_keycode) == wc)
+        {
+            // this needs to return something, or the event loop in
+            // TilesFramework::getch_ck will block. Currently, CK_NO_KEY
+            // is handled in macro.cc:_getch_mul.
+            prev_keycode = 0;
+            if (!m_textinput_queue.empty())
+                continue;
+            event->key.keysym.sym = CK_NO_KEY;
+            return 1;
+        }
+        event->key.keysym.sym = wc;
+    }
+    while (false);
+    return 1;
+}
+
 int SDLWrapper::wait_event(wm_event *event)
 {
     SDL_Event sdlevent;
+
+    if (!m_textinput_queue.empty())
+        return send_textinput(event);
+
     if (!SDL_WaitEvent(&sdlevent))
         return 0;
+
+    if (sdlevent.type != SDL_TEXTINPUT)
+        prev_keycode = 0;
 
     // translate the SDL_Event into the almost-analogous wm_event
     switch (sdlevent.type)
@@ -669,14 +760,14 @@ int SDLWrapper::wait_event(wm_event *event)
             return 0;
 
         // If we're going to accept this keydown, don't generate subsequent
-        // textinput events for the same key.
-        if (event->key.keysym.sym)
-            _suppress_textinput();
+        // textinput events for the same key. This mechanism assumes that a
+        // fake textinput will arrive as the immediately following SDL event.
+        prev_keycode = sdlevent.key.keysym.sym;
 
 /*
- * LShift = scancode 0x30; key_mod 0x1; unicode 0x130; sym 0x130 SDLK_LSHIFT
- * LCtrl  = scancode 0x32; key_mod 0x2; unicode 0x132; sym 0x132 SDLK_LCTRL
- * LAlt   = scancode 0x34; key_mod 0x4; unicode 0x134; sym 0x134 SDLK_LALT
+ * LShift = scancode 0x30; tiles_key_mod 0x1; unicode 0x130; sym 0x130 SDLK_LSHIFT
+ * LCtrl  = scancode 0x32; tiles_key_mod 0x2; unicode 0x132; sym 0x132 SDLK_LCTRL
+ * LAlt   = scancode 0x34; tiles_key_mod 0x4; unicode 0x134; sym 0x134 SDLK_LALT
  */
         break;
     case SDL_KEYUP:
@@ -690,12 +781,9 @@ int SDLWrapper::wait_event(wm_event *event)
         break;
     case SDL_TEXTINPUT:
     {
-        event->type = WME_KEYPRESS;
-        // XXX: handle multiple keys?
-        char32_t wc;
-        utf8towc(&wc, sdlevent.text.text);
-        event->key.keysym.sym = wc;
-        break;
+        ASSERT(m_textinput_queue.empty());
+        m_textinput_queue = string(sdlevent.text.text);
+        return send_textinput(event);
     }
     case SDL_MOUSEMOTION:
         event->type = WME_MOUSEMOTION;
@@ -710,7 +798,7 @@ int SDLWrapper::wait_event(wm_event *event)
         _translate_event(sdlevent.button, event->mouse_event);
         break;
     case SDL_MOUSEWHEEL:
-        event->type = WME_MOUSEBUTTONDOWN; // XXX
+        event->type = WME_MOUSEWHEEL;
         _translate_wheel_event(sdlevent.wheel, event->mouse_event);
         break;
     case SDL_QUIT:
@@ -762,12 +850,18 @@ void SDLWrapper::delay(unsigned int ms)
 
 unsigned int SDLWrapper::get_event_count(wm_event_type type)
 {
+    // check for enqueued characters from a multi-char textinput event
+    // count is floored to 1 for consistency with other event types
+    if (type == WME_KEYPRESS && m_textinput_queue.size() > 0)
+        return 1;
+
     // Look for the presence of any keyboard events in the queue.
     Uint32 event;
     switch (type)
     {
     case WME_ACTIVEEVENT:
     case WME_RESIZE: // XXX
+    case WME_MOVE:
     case WME_EXPOSE: // XXX
         event = SDL_WINDOWEVENT;
         break;
@@ -794,6 +888,10 @@ unsigned int SDLWrapper::get_event_count(wm_event_type type)
 
     case WME_MOUSEBUTTONDOWN:
         event = SDL_MOUSEBUTTONDOWN;
+        break;
+
+    case WME_MOUSEWHEEL:
+        event = SDL_MOUSEWHEEL;
         break;
 
     case WME_QUIT:

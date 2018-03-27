@@ -276,15 +276,6 @@ static bool _evoke_horn_of_geryon()
 
 static bool _check_crystal_ball()
 {
-#if TAG_MAJOR_VERSION == 34
-    if (you.species == SP_DJINNI)
-    {
-        mpr("These balls have not yet been approved for use by djinn. "
-            "(OOC: they're supposed to work, but need a redesign.)");
-        return false;
-    }
-#endif
-
     if (you.confused())
     {
         canned_msg(MSG_TOO_CONFUSED);
@@ -382,17 +373,11 @@ void black_drac_breath()
 int wand_mp_cost()
 {
     // Update mutation-data.h when updating this value.
-    return player_mutation_level(MUT_MP_WANDS) * 3;
+    return you.get_mutation_level(MUT_MP_WANDS) * 3;
 }
 
 void zap_wand(int slot)
 {
-    if (!form_can_use_wand())
-    {
-        mpr("You have no means to grasp a wand firmly enough.");
-        return;
-    }
-
     if (inv_count() < 1)
     {
         canned_msg(MSG_NOTHING_CARRIED);
@@ -411,7 +396,7 @@ void zap_wand(int slot)
         return;
     }
 
-    if (player_mutation_level(MUT_NO_ARTIFICE))
+    if (you.get_mutation_level(MUT_NO_ARTIFICE))
     {
         mpr("You cannot evoke magical items.");
         return;
@@ -424,9 +409,7 @@ void zap_wand(int slot)
         return;
     }
 
-    const int mp_cost = wand_mp_cost();
-    if (!enough_mp(mp_cost, false))
-        return;
+    const int mp_cost = min(you.magic_points, wand_mp_cost());
 
     int item_slot;
     if (slot != -1)
@@ -457,17 +440,13 @@ void zap_wand(int slot)
     if (you.equip[EQ_WEAPON] == item_slot)
         you.wield_change = true;
 
-    const bool has_charges = wand.charges > 0;
-    if (!has_charges && wand.used_count == ZAPCOUNT_EMPTY)
+    if (wand.charges <= 0)
     {
         mpr("This wand has no charges.");
         return;
     }
 
-    // Will waste charges.
-    const bool wasteful = !item_ident(wand, ISFLAG_KNOW_PLUSES);
-    int power = (15 + you.skill(SK_EVOCATIONS, 7) / 2)
-                * (player_mutation_level(MUT_MP_WANDS) + 3) / 3;
+    int power = (15 + you.skill(SK_EVOCATIONS, 7) / 2) * (mp_cost + 9) / 9;
 
     const spell_type spell =
         spell_in_wand(static_cast<wand_type>(wand.sub_type));
@@ -479,161 +458,35 @@ void zap_wand(int slot)
     else if (ret == SPRET_FAIL)
     {
         canned_msg(MSG_NOTHING_HAPPENS);
-        // It's an empty wand; inscribe it that way.
-        wand.used_count = ZAPCOUNT_EMPTY;
         you.turn_is_over = true;
         return;
     }
 
     // Spend MP.
-    dec_mp(mp_cost, false);
+    if (mp_cost)
+    {
+        dec_mp(mp_cost, false);
+        mprf("You feel a %ssurge of power%s",
+             mp_cost < 3 ? "slight " : "",
+             mp_cost < 3 ? "."       : "!");
+    }
 
     // Take off a charge.
     wand.charges--;
-    // And a few more, if you didn't know the wand's charges.
-    int wasted_charges = 0;
-    if (wasteful)
+
+    if (wand.charges == 0)
     {
-#ifdef DEBUG_DIAGNOSTICS
-        const int initial_charge = wand.plus;
-#endif
+        ASSERT(in_inventory(wand));
 
-        wasted_charges = 1 + random2(2); //1-2
-        wand.charges = max(0, wand.charges - wasted_charges);
-
-        dprf("Wasted %d charges (wand %d -> %d)", wasted_charges,
-             initial_charge, wand.charges);
-        mpr("Evoking this partially-identified wand wasted a few charges.");
+        mpr("The now-empty wand crumbles to dust.");
+        dec_inv_item_quantity(wand.link, 1);
     }
-
-    // Zap counts count from the last recharge.
-    if (wand.used_count == ZAPCOUNT_RECHARGED)
-        wand.used_count = 0;
-    // Increment zap count.
-    if (wand.used_count >= 0)
-    {
-        wand.used_count++;
-        if (wasteful)
-            wand.used_count += wasted_charges;
-    }
-
-    if (item_type_known(wand)
-        && (item_ident(wand, ISFLAG_KNOW_PLUSES)
-            || you.skill_rdiv(SK_EVOCATIONS) > random2(27)))
-    {
-        if (!item_ident(wand, ISFLAG_KNOW_PLUSES))
-        {
-            mpr("Your skill with magical items lets you calculate "
-                "the power of this device...");
-        }
-
-        mprf("This wand has %d charge%s left.",
-             wand.plus, wand.plus == 1 ? "" : "s");
-
-        set_ident_flags(wand, ISFLAG_KNOW_PLUSES);
-    }
-    // Mark as empty if necessary.
-    if (wand.charges == 0 && wand.flags & ISFLAG_KNOW_PLUSES)
-        wand.used_count = ZAPCOUNT_EMPTY;
 
     practise_evoking(1);
     count_action(CACT_EVOKE, EVOC_WAND);
     alert_nearby_monsters();
 
     you.turn_is_over = true;
-}
-
-int recharge_wand(bool known, const string &pre_msg, int num, int den)
-{
-    int item_slot = -1;
-    bool divine = num >= 0 && den >= 0;
-    do
-    {
-        if (item_slot == -1)
-        {
-            item_slot = prompt_invent_item("Charge which item?", MT_INVLIST,
-                                           OSEL_RECHARGE,
-                                           OPER_ANY,
-                                           invprompt_flag::escape_only);
-        }
-
-        if (item_slot == PROMPT_NOTHING)
-            return known ? -1 : 0;
-
-        if (item_slot == PROMPT_ABORT)
-        {
-            if (known
-                || crawl_state.seen_hups
-                || yesno("Really abort (and waste the scroll)?", false, 0))
-            {
-                canned_msg(MSG_OK);
-                return known ? -1 : 0;
-            }
-            else
-            {
-                item_slot = -1;
-                continue;
-            }
-        }
-
-        item_def &wand = you.inv[ item_slot ];
-
-        if (!item_is_rechargeable(wand, known))
-        {
-            mpr("Choose an item to recharge, or Esc to abort.");
-            more();
-
-            // Try again.
-            item_slot = -1;
-            continue;
-        }
-
-        int charge_gain = wand_max_charges(wand) / 3;
-
-        const int new_charges =
-            divine
-            ? min<int>(charge_gain * 3,
-                       max<int>(wand.charges + 1,
-                                wand.charges + 3 * charge_gain * num / den))
-            : max<int>(wand.charges,
-                       min(charge_gain * 3,
-                           wand.charges +
-                           1 + random2avg(((charge_gain - 1) * 3) + 1, 3)));
-
-        const bool charged = (new_charges > wand.plus);
-
-        string desc;
-
-        if (charged && item_ident(wand, ISFLAG_KNOW_PLUSES))
-        {
-            desc = make_stringf(" and now has %d charge%s",
-                                new_charges, new_charges == 1 ? "" : "s");
-        }
-
-        if (known && !pre_msg.empty())
-            mpr(pre_msg);
-
-        mprf("%s %s for a moment%s.",
-             wand.name(DESC_YOUR).c_str(),
-             charged ? "glows" : "flickers",
-             desc.c_str());
-
-        if (!charged && !item_ident(wand, ISFLAG_KNOW_PLUSES))
-        {
-            mprf("It has %d charges and is fully charged.", new_charges);
-            set_ident_flags(wand, ISFLAG_KNOW_PLUSES);
-        }
-
-        // Reinitialise zap counts.
-        wand.charges  = new_charges;
-        wand.used_count = ZAPCOUNT_RECHARGED;
-
-        you.wield_change = true;
-        return 1;
-    }
-    while (true);
-
-    return 0;
 }
 
 // return a slot that has manual for given skill, or -1 if none exists
@@ -840,7 +693,7 @@ static bool _sack_of_spiders(item_def &sack)
     {
         mpr("...and things crawl out!");
         // Also generate webs on hostile monsters and trap them.
-        const int rad = LOS_RADIUS / 2 + 2;
+        const int rad = LOS_DEFAULT_RANGE / 2 + 2;
         for (monster_near_iterator mi(you.pos(), LOS_SOLID); mi; ++mi)
         {
             trap_def *trap = trap_at((*mi)->pos());
@@ -1345,7 +1198,7 @@ void wind_blast(actor* agent, int pow, coord_def target, bool card)
 
     // Now move clouds
     vector<coord_def> cloud_list;
-    for (distance_iterator di(agent->pos(), true, true, radius + 2); di; ++di)
+    for (distance_iterator di(agent->pos(), true, false, radius + 2); di; ++di)
     {
         if (cloud_at(*di)
             && cell_see_cell(agent->pos(), *di, LOS_SOLID)
@@ -1363,6 +1216,12 @@ void wind_blast(actor* agent, int pow, coord_def target, bool card)
 
         int dist = cloud_list[i].distance_from(agent->pos());
         int push = (dist > 5 ? 2 : dist > 2 ? 3 : 4);
+
+        if (dist == 0 && agent->is_player())
+        {
+            delete_cloud(agent->pos());
+            break;
+        }
 
         for (unsigned int j = 0;
              j < wind_beam.path_taken.size() - 1 && push;
@@ -1499,7 +1358,6 @@ static bool _phial_of_floods()
             mgen_data mg (MONS_WATER_ELEMENTAL, attitude, elementals[n], 0,
                           MG_FORCE_BEH | MG_FORCE_PLACE);
             mg.set_summoned(&you, 3, SPELL_NO_SPELL);
-            mg.set_prox(PROX_CLOSE_TO_PLAYER);
             mg.hd = player_adjust_evoc_power(
                         6 + you.skill_rdiv(SK_EVOCATIONS, 2, 15), surge);
             if (create_monster(mg))
@@ -1512,11 +1370,6 @@ static bool _phial_of_floods()
     }
 
     return false;
-}
-
-void expend_xp_evoker(item_def &item)
-{
-    evoker_debt(item.sub_type) = XP_EVOKE_DEBT;
 }
 
 static spret_type _phantom_mirror()
@@ -1555,7 +1408,7 @@ static spret_type _phantom_mirror()
 
     if (player_will_anger_monster(*victim))
     {
-        if (player_mutation_level(MUT_NO_LOVE))
+        if (you.get_mutation_level(MUT_NO_LOVE))
             mpr("The reflection would only feel hate for you!");
         else
             simple_god_message(" forbids your reflecting this monster.");
@@ -1638,7 +1491,7 @@ bool evoke_item(int slot, bool check_range)
 
     item_def& item = you.inv[slot];
     // Also handles messages.
-    if (!item_is_evokable(item, true, false, false, true))
+    if (!item_is_evokable(item, true, false, true))
         return false;
 
     bool did_work   = false;  // "Nothing happens" message
@@ -1700,17 +1553,12 @@ bool evoke_item(int slot, bool check_range)
             return false;
         }
 
-        if (you.undead_state() == US_ALIVE && !you_foodless()
-            && you.hunger_state <= HS_STARVING)
+        if (apply_starvation_penalties())
         {
             canned_msg(MSG_TOO_HUNGRY);
             return false;
         }
-        else if (you.magic_points >= you.max_magic_points
-#if TAG_MAJOR_VERSION == 34
-                 && (you.species != SP_DJINNI || you.hp == you.hp_max)
-#endif
-                )
+        else if (you.magic_points >= you.max_magic_points)
         {
             canned_msg(MSG_FULL_MAGIC);
             return false;
@@ -1734,12 +1582,12 @@ bool evoke_item(int slot, bool check_range)
     case OBJ_MISCELLANY:
         did_work = true; // easier to do it this way for misc items
 
-        if ((player_mutation_level(MUT_NO_ARTIFICE)
+        if ((you.get_mutation_level(MUT_NO_ARTIFICE)
              || player_under_penance(GOD_PAKELLAS))
             && !is_deck(item)
             && item.sub_type != MISC_ZIGGURAT)
         {
-            if (player_mutation_level(MUT_NO_ARTIFICE))
+            if (you.get_mutation_level(MUT_NO_ARTIFICE))
                 mpr("You cannot evoke magical items.");
             else
             {
@@ -1767,7 +1615,7 @@ bool evoke_item(int slot, bool check_range)
 
         case MISC_FAN_OF_GALES:
         {
-            if (!evoker_is_charged(item))
+            if (!evoker_charges(item.sub_type))
             {
                 mpr("That is presently inert.");
                 return false;
@@ -1779,20 +1627,20 @@ bool evoke_item(int slot, bool check_range)
                        player_adjust_evoc_power(you.skill(SK_EVOCATIONS, 15),
                                                 surge),
                        coord_def());
-            expend_xp_evoker(item);
+            expend_xp_evoker(item.sub_type);
             practise_evoking(3);
             break;
         }
 
         case MISC_LAMP_OF_FIRE:
-            if (!evoker_is_charged(item))
+            if (!evoker_charges(item.sub_type))
             {
                 mpr("That is presently inert.");
                 return false;
             }
             if (_lamp_of_fire())
             {
-                expend_xp_evoker(item);
+                expend_xp_evoker(item.sub_type);
                 practise_evoking(3);
             }
             else
@@ -1807,14 +1655,14 @@ bool evoke_item(int slot, bool check_range)
 #endif
 
         case MISC_PHIAL_OF_FLOODS:
-            if (!evoker_is_charged(item))
+            if (!evoker_charges(item.sub_type))
             {
                 mpr("That is presently inert.");
                 return false;
             }
             if (_phial_of_floods())
             {
-                expend_xp_evoker(item);
+                expend_xp_evoker(item.sub_type);
                 practise_evoking(3);
             }
             else
@@ -1822,14 +1670,14 @@ bool evoke_item(int slot, bool check_range)
             break;
 
         case MISC_HORN_OF_GERYON:
-            if (!evoker_is_charged(item))
+            if (!evoker_charges(item.sub_type))
             {
                 mpr("That is presently inert.");
                 return false;
             }
             if (_evoke_horn_of_geryon())
             {
-                expend_xp_evoker(item);
+                expend_xp_evoker(item.sub_type);
                 practise_evoking(3);
             }
             else
@@ -1854,7 +1702,7 @@ bool evoke_item(int slot, bool check_range)
             break;
 
         case MISC_LIGHTNING_ROD:
-            if (!evoker_is_charged(item))
+            if (!evoker_charges(item.sub_type))
             {
                 mpr("That is presently inert.");
                 return false;
@@ -1862,12 +1710,9 @@ bool evoke_item(int slot, bool check_range)
             if (_lightning_rod())
             {
                 practise_evoking(1);
-                if (you.props["thunderbolt_charge"].get_int() >=
-                    LIGHTNING_MAX_CHARGE)
-                {
+                expend_xp_evoker(item.sub_type);
+                if (!evoker_charges(item.sub_type))
                     mpr("The lightning rod overheats!");
-                    expend_xp_evoker(item);
-                }
             }
             else
                 return false;

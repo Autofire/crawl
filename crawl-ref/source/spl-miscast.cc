@@ -332,14 +332,6 @@ void MiscastEffect::do_miscast()
     case SPTYP_EARTH:          _earth(severity);          break;
     case SPTYP_AIR:            _air(severity);            break;
     case SPTYP_POISON:         _poison(severity);         break;
-    case SPTYP_DIVINATION:
-        // Divination miscasts have nothing in common between the player
-        // and monsters.
-        if (target->is_player())
-            _divination_you(severity);
-        else
-            _divination_mon(severity);
-        break;
 
     default:
         die("Invalid miscast spell discipline.");
@@ -451,7 +443,7 @@ bool MiscastEffect::_ouch(int dam, beam_type flavour)
                          "", "", false);
 
         if (!mon_target->alive())
-            monster_die(mon_target, kt, actor_to_death_source(act_source));
+            monster_die(*mon_target, kt, actor_to_death_source(act_source));
     }
     else
     {
@@ -1165,14 +1157,8 @@ void MiscastEffect::_charms(int severity)
                 if (target->is_player())
                 {
                     debuff_player();
-                    if (you.magic_points > 0
-#if TAG_MAJOR_VERSION == 34
-                        || you.species == SP_DJINNI
-#endif
-                        )
-                        {
-                            drain_mp(4 + random2(3));
-                        }
+                    if (you.magic_points > 0)
+                        dec_mp(4 + random2(3));
                 }
                 else if (target->is_monster())
                 {
@@ -1566,175 +1552,6 @@ void MiscastEffect::_summoning(int severity)
 
         break;
     }
-}
-
-void MiscastEffect::_divination_you(int severity)
-{
-    switch (severity)
-    {
-    case 0:         // just a harmless message
-        switch (random2(10))
-        {
-        case 0:
-            mpr("Weird images run through your mind.");
-            break;
-        case 1:
-            if (!silenced(you.pos()))
-            {
-                mprf(MSGCH_SOUND, "You hear strange voices.");
-                noisy(2, you.pos());
-            }
-            else
-                mpr("Your nose twitches.");
-            break;
-        case 2:
-            mpr("Your head hurts.");
-            break;
-        case 3:
-            mpr("You feel a strange surge of energy!");
-            break;
-        case 4:
-            mpr("Your brain hurts!");
-            break;
-        case 5:
-            mpr("Strange energies run through your body.");
-            break;
-        case 6:
-            mpr("Everything looks hazy for a moment.");
-            break;
-        case 7:
-            mpr("You seem to have forgotten something, but you can't remember what it was!");
-            break;
-        case 8:
-            canned_msg(MSG_NOTHING_HAPPENS);
-            break;
-        case 9:
-            mpr("You feel uncomfortable.");
-            break;
-        }
-        break;
-
-    case 1:         // more annoying things
-        switch (random2(2))
-        {
-        case 0:
-            mpr("You feel a little dazed.");
-            break;
-        case 1:
-            target->confuse(act_source, 5 + random2(3));
-            break;
-        }
-        break;
-
-    case 2:         // even more annoying things
-        switch (random2(2))
-        {
-        case 0:
-            if (lose_stat(STAT_INT, 1 + random2(3)))
-            {
-                if (you.undead_state())
-                    mpr("You suddenly recall your previous life!");
-                else
-                    mpr("You have damaged your brain!");
-            }
-            else if (!did_msg)
-                mpr("You have a terrible headache.");
-            break;
-        case 1:
-            mpr("You lose your focus.");
-            if (you.magic_points > 0
-#if TAG_MAJOR_VERSION == 34
-                    || you.species == SP_DJINNI
-#endif
-                    )
-            {
-                drain_mp(3 + random2(10));
-                canned_msg(MSG_MAGIC_DRAIN);
-            }
-            break;
-        }
-
-        target->confuse(act_source, 1);  // common to all cases here {dlb}
-        break;
-
-    case 3:         // nasty
-        switch (random2(2))
-        {
-        case 0:
-            mpr("You lose concentration completely!");
-            if (you.magic_points > 0
-#if TAG_MAJOR_VERSION == 34
-                || you.species == SP_DJINNI
-#endif
-                    )
-            {
-                drain_mp(5 + random2(20));
-                canned_msg(MSG_MAGIC_DRAIN);
-            }
-            break;
-        case 1:
-            if (lose_stat(STAT_INT, 1 + random2avg(5, 2)))
-            {
-                if (you.undead_state())
-                    mpr("You suddenly recall your previous life!");
-                else
-                    mpr("You have damaged your brain!");
-            }
-            else if (!did_msg)
-                mpr("You have a terrible headache.");
-            break;
-        }
-
-        target->confuse(act_source, 1);  // common to all cases here {dlb}
-        break;
-    }
-}
-
-// XXX: Monster divination miscasts.
-void MiscastEffect::_divination_mon(int severity)
-{
-    // Nothing is appropriate for unmoving plants.
-    if (mons_is_firewood(*target->as_monster()))
-        return;
-
-    switch (severity)
-    {
-    case 0:         // just a harmless message
-        mon_msg_seen = "@The_monster@ looks momentarily confused.";
-        break;
-
-    case 1:         // more annoying things
-        switch (random2(2))
-        {
-        case 0:
-            mon_msg_seen = "@The_monster@ looks slightly disoriented.";
-            break;
-        case 1:
-            mon_msg_seen = "@The_monster@ looks disoriented.";
-            target->confuse(
-                act_source,
-                1 + random2(3 + (act_source ? act_source->get_hit_dice() : 13)));
-            break;
-        }
-        break;
-
-    case 2:         // even more annoying things
-        mon_msg_seen = "@The_monster@ shudders.";
-        target->confuse(
-            act_source,
-            5 + random2(3 + (act_source ? act_source->get_hit_dice() : 13)));
-        break;
-
-    case 3:         // nasty
-        mon_msg_seen = "@The_monster@ reels.";
-        if (one_chance_in(7))
-            target->as_monster()->forget_random_spell();
-        target->confuse(
-            act_source,
-            8 + random2(3 + (act_source ? act_source->get_hit_dice() : 13)));
-        break;
-    }
-    do_msg();
 }
 
 void MiscastEffect::_necromancy(int severity)
@@ -2488,7 +2305,7 @@ void MiscastEffect::_ice(int severity)
             mon_msg = "Heat is drained from @the_monster@.";
             if (_ouch(5 + random2(6) + random2(7), BEAM_COLD) && target->alive())
                 target->expose_to_element(BEAM_COLD, 4);
-            if (target->is_player() && !you_foodless(false))
+            if (target->is_player() && !you_foodless())
                 you.increase_duration(DUR_NO_POTIONS, 10 + random2(11), 50);
             break;
 
@@ -3214,7 +3031,7 @@ void MiscastEffect::_zot()
     case 3:    // other misc stuff
     reroll_2:
         // Cases at the end are for players only.
-        switch (random2(target->is_player() ? 14 : 9))
+        switch (random2(target->is_player() ? 13 : 9))
         {
         case 0:
             target->paralyse(act_source, 2 + random2(4), cause);
@@ -3289,18 +3106,14 @@ void MiscastEffect::_zot()
             }
             break;
         case 10:
-            if (!drain_wands())
-                do_msg(); // For canned_msg(MSG_NOTHING_HAPPENS)
-            break;
-        case 11:
             lose_stat(STAT_RANDOM, 1 + random2avg(5, 2));
             break;
-        case 12:
+        case 11:
             mpr("An unnatural silence engulfs you.");
             you.increase_duration(DUR_SILENCE, 10 + random2(21), 30);
             invalidate_agrid(true);
             break;
-        case 13:
+        case 12:
             if (!mons_word_of_recall(nullptr, 2 + random2(3)))
                 canned_msg(MSG_NOTHING_HAPPENS);
             break;

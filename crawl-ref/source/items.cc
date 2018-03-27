@@ -48,6 +48,7 @@
 #include "invent.h"
 #include "item-name.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "item-use.h"
 #include "libutil.h"
 #include "macro.h"
@@ -69,6 +70,7 @@
 #include "rot.h"
 #include "shopping.h"
 #include "showsymb.h"
+#include "slot-select-mode.h"
 #include "sound.h"
 #include "spl-book.h"
 #include "spl-util.h"
@@ -78,6 +80,7 @@
 #include "stringutil.h"
 #include "terrain.h"
 #include "throw.h"
+#include "tilepick.h"
 #include "travel.h"
 #include "unwind.h"
 #include "viewchar.h"
@@ -936,20 +939,19 @@ void item_check()
 }
 
 // Identify the object the player stepped on.
-// Books and manuals are fully identified.
+// Books are fully identified.
 // Wands are only type-identified.
 static bool _id_floor_item(item_def &item)
 {
     if (item.base_type == OBJ_BOOKS)
     {
-        if (fully_identified(item) && item.sub_type != BOOK_MANUAL)
+        if (fully_identified(item))
             return false;
 
         // fix autopickup for previously-unknown books (hack)
         if (item_needs_autopickup(item))
             item.props["needs_autopickup"] = true;
         set_ident_flags(item, ISFLAG_IDENT_MASK);
-        mark_had_book(item);
         return true;
     }
     else if (item.base_type == OBJ_WANDS)
@@ -965,6 +967,7 @@ static bool _id_floor_item(item_def &item)
             return true;
         }
     }
+
     return false;
 }
 
@@ -1710,7 +1713,7 @@ void get_gold(const item_def& item, int quant, bool quiet)
 {
     you.attribute[ATTR_GOLD_FOUND] += quant;
 
-    if (you_worship(GOD_ZIN) && !(item.flags & ISFLAG_THROWN))
+    if (you_worship(GOD_ZIN))
         quant -= zin_tithe(item, quant, quiet);
     if (quant <= 0)
         return;
@@ -1824,6 +1827,52 @@ bool move_item_to_inv(int obj, int quant_got, bool quiet)
     return keep_going;
 }
 
+static void _get_book(const item_def& it, bool quiet, bool allow_auto_hide)
+{
+    vector<string> spellnames;
+    if (!quiet)
+        mprf("You pick up %s and begin reading...", it.name(DESC_A).c_str());
+    for (spell_type st : spells_in_book(it))
+    {
+        if (!you.spell_library[st])
+        {
+            you.spell_library.set(st, true);
+            bool memorise = you_can_memorise(st);
+            if (memorise)
+                spellnames.push_back(spell_title(st));
+            if (!memorise || (Options.auto_hide_spells && allow_auto_hide))
+                you.hidden_spells.set(st, true);
+        }
+    }
+    if (!quiet)
+    {
+        if (!spellnames.empty())
+        {
+            mprf("You add the spell%s %s to your library.",
+                 spellnames.size() > 1 ? "s" : "",
+                 comma_separated_line(spellnames.begin(),
+                                      spellnames.end()).c_str());
+        }
+        else
+            mpr("Unfortunately, it added no spells to the library.");
+    }
+}
+
+// Adds all books in the player's inventory to library.
+// Declared here for use by tags to load old saves.
+// Outside of loading old saves, only used at character creation.
+void add_held_books_to_library()
+{
+    for (item_def& it : you.inv)
+    {
+        if (it.base_type == OBJ_BOOKS && it.sub_type != BOOK_MANUAL)
+        {
+            _get_book(it, true, false);
+            destroy_item(it);
+        }
+    }
+}
+
 /**
  * Place a rune into the player's inventory.
  *
@@ -1928,6 +1977,45 @@ static bool _merge_stackable_item_into_inv(const item_def &it, int quant_got,
 }
 
 /**
+ * Attempt to merge a wands charges into an existing wand of the same type in
+ * inventory.
+ *
+ * @param it[in]            The wand to merge.
+ * @param inv_slot[out]     The inventory slot the wand was placed in. -1 if
+ * not placed.
+ * @param quiet             Whether to suppress pickup messages.
+ */
+static bool _merge_wand_charges(const item_def &it, int &inv_slot, bool quiet)
+{
+    for (inv_slot = 0; inv_slot < ENDOFPACK; inv_slot++)
+    {
+        if (you.inv[inv_slot].base_type != OBJ_WANDS
+            || you.inv[inv_slot].sub_type != it.sub_type)
+        {
+            continue;
+        }
+
+        you.inv[inv_slot].charges += it.charges;
+
+        if (!quiet)
+        {
+#ifdef USE_SOUND
+            parse_sound(PICKUP_SOUND);
+#endif
+            mprf_nocap("%s (gained %d charges)",
+                        menu_colour_item_name(you.inv[inv_slot],
+                                                    DESC_INVENTORY).c_str(),
+                        it.charges);
+        }
+
+        return true;
+    }
+
+    inv_slot = -1;
+    return false;
+}
+
+/**
  * Maybe move an item to the slot given by the item_slot option.
  *
  * @param[in] item the item to be checked. Note that any references to this
@@ -1937,6 +2025,8 @@ static bool _merge_stackable_item_into_inv(const item_def &it, int quant_got,
 item_def *auto_assign_item_slot(item_def& item)
 {
     if (!item.defined())
+        return nullptr;
+    if (!in_inventory(item))
         return nullptr;
 
     int newslot = -1;
@@ -2014,19 +2104,18 @@ static int _place_item_in_free_slot(item_def &it, int quant_got,
     if (item.base_type == OBJ_WANDS)
     {
         set_ident_type(item, true);
-
-        if (have_passive(passive_t::identify_devices)
-            && !item_ident(item, ISFLAG_KNOW_PLUSES))
-        {
-            set_ident_flags(item, ISFLAG_KNOW_PLUSES);
-        }
+        set_ident_flags(item, ISFLAG_KNOW_PLUSES);
     }
 
     maybe_identify_base_type(item);
     if (item.base_type == OBJ_BOOKS)
-    {
         set_ident_flags(item, ISFLAG_IDENT_MASK);
-        mark_had_book(item);
+
+    // Normalize ration tile in inventory
+    if (item.base_type == OBJ_FOOD && item.sub_type == FOOD_RATION)
+    {
+        item.props["item_tile_name"] = "food_ration_inventory";
+        bind_item_tile(item);
     }
 
     note_inscribe_item(item);
@@ -2086,7 +2175,11 @@ static bool _merge_items_into_inv(item_def &it, int quant_got,
         get_gold(it, quant_got, quiet);
         return true;
     }
-
+    if (it.base_type == OBJ_BOOKS && it.sub_type != BOOK_MANUAL)
+    {
+        _get_book(it, quiet, true);
+        return true;
+    }
     // Runes are also massless.
     if (it.base_type == OBJ_RUNES)
     {
@@ -2104,6 +2197,14 @@ static bool _merge_items_into_inv(item_def &it, int quant_got,
     if (is_stackable_item(it)
         && _merge_stackable_item_into_inv(it, quant_got, inv_slot, quiet))
     {
+        return true;
+    }
+
+    // attempt to merge into an existing stack, if possible
+    if (it.base_type == OBJ_WANDS
+        && _merge_wand_charges(it, inv_slot, quiet))
+    {
+        quant_got = 1;
         return true;
     }
 
@@ -2297,11 +2398,7 @@ bool copy_item_to_grid(item_def &item, const coord_def& p,
 
     if (feat_destroys_items(grd(p)))
     {
-        if (item_is_spellbook(item))
-            destroy_spellbook(item);
-
         item_was_destroyed(item);
-
         return true;
     }
 
@@ -2945,9 +3042,10 @@ static bool _similar_wands(const item_def& pickup_item,
 
     if (pickup_item.sub_type != inv_item.sub_type)
         return false;
-
-    // Not similar if wand in inventory is known to be empty.
+#if TAG_MAJOR_VERSION == 34
+    // Not similar if wand in inventory is empty.
     return !is_known_empty_wand(inv_item);
+#endif
 }
 
 static bool _similar_jewellery(const item_def& pickup_item,
@@ -3045,7 +3143,7 @@ static bool _interesting_explore_pickup(const item_def& item)
         return _item_different_than_inv(item, _similar_jewellery);
 
     case OBJ_FOOD:
-        if (you_worship(GOD_FEDHAS) && is_fruit(item))
+        if (you_worship(GOD_FEDHAS) && item.is_type(OBJ_FOOD, FOOD_RATION))
             return true;
 
         if (is_inedible(item))
@@ -3553,14 +3651,9 @@ colour_t item_def::food_colour() const
 
     switch (sub_type)
     {
-        case FOOD_ROYAL_JELLY:
-            return YELLOW;
-        case FOOD_FRUIT:
-            return LIGHTGREEN;
         case FOOD_CHUNK:
             return LIGHTRED;
-        case FOOD_BREAD_RATION:
-        case FOOD_MEAT_RATION:
+        case FOOD_RATION:
         default:
             return BROWN;
     }
@@ -4459,7 +4552,7 @@ bool get_item_by_name(item_def *item, const char* specs,
         break;
 
     case OBJ_WANDS:
-        item->plus = wand_max_charges(*item);
+        item->plus = wand_charge_value(item->sub_type);
         break;
 
     case OBJ_POTIONS:
@@ -4507,6 +4600,47 @@ bool get_item_by_name(item_def *item, const char* specs,
     item_set_appearance(*item);
 
     return true;
+}
+
+bool get_item_by_exact_name(item_def &item, const char* name)
+{
+    item.clear();
+    item.quantity = 1;
+    // Don't use set_ident_flags(), to avoid getting a spurious ID note.
+    item.flags |= ISFLAG_IDENT_MASK;
+
+    string name_lc = lowercase_string(string(name));
+
+    for (int i = 0; i < NUM_OBJECT_CLASSES; ++i)
+    {
+        if (i == OBJ_RUNES) // runes aren't shown in ?/I
+            continue;
+
+        item.base_type = static_cast<object_class_type>(i);
+        item.sub_type = 0;
+
+        // _deck_from_specs doesn't use exact matches, but it's close enough
+        if (item.base_type == OBJ_MISCELLANY && starts_with(name_lc, "deck of"))
+        {
+            _deck_from_specs(name, item, false);
+
+            // deck creation cancelled, clean up item.
+            if (item.base_type == OBJ_UNASSIGNED)
+                return false;
+            return item.sub_type != 0;
+        }
+
+        if (!item.sub_type)
+        {
+            for (int j = 0; j < get_max_subtype(item.base_type); ++j)
+            {
+                item.sub_type = j;
+                if (lowercase_string(item.name(DESC_DBNAME)) == name_lc)
+                    return true;
+            }
+        }
+    }
+    return false;
 }
 
 void move_items(const coord_def r, const coord_def p)
@@ -4607,13 +4741,13 @@ item_info get_item_info(const item_def& item)
         break;
     case OBJ_WANDS:
         if (item_type_known(item))
+        {
             ii.sub_type = item.sub_type;
+            ii.charges = item.charges;
+        }
         else
             ii.sub_type = NUM_WANDS;
         ii.subtype_rnd = item.subtype_rnd;
-        if (item_ident(ii, ISFLAG_KNOW_PLUSES))
-            ii.charges = item.charges;
-        ii.used_count = item.used_count; // num zapped/recharged or empty
         break;
     case OBJ_POTIONS:
         if (item_type_known(item))

@@ -6,8 +6,7 @@
  * dependencies.
 **/
 
-#ifndef MON_ENUM_H
-#define MON_ENUM_H
+#pragma once
 
 #define HERD_COMFORT_RANGE 6
 
@@ -16,7 +15,6 @@ enum corpse_effect_type
     CE_NOCORPSE,
     CE_CLEAN,
     CE_NOXIOUS,
-    CE_MUTAGEN,
 };
 
 // TODO: Unify this and a player_equivalent (if applicable)
@@ -219,7 +217,7 @@ enum mon_resist_flags
     // unused 1 << 25,
 #endif
     MR_RES_STICKY_FLAME  = 1 << 26,
-    MR_RES_WIND          = 1 << 27,
+    MR_RES_TORNADO       = 1 << 27,
     MR_RES_STEAM         = 1 << 28,
 
     // vulnerabilities
@@ -309,5 +307,3 @@ enum mon_body_shape
     MON_SHAPE_BLOB,
     MON_SHAPE_MISC,
 };
-
-#endif

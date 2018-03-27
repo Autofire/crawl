@@ -3,8 +3,7 @@
  * @brief Misc function used to render the dungeon.
 **/
 
-#ifndef VIEW_H
-#define VIEW_H
+#pragma once
 
 #include "defines.h"
 #include "options.h"
@@ -36,10 +35,12 @@ void flash_view(use_animation_type a, colour_t colour,
                 targeter *where = nullptr);
 void flash_view_delay(use_animation_type a, colour_t colour, int delay,
                       targeter *where = nullptr);
-#ifndef USE_TILE_LOCAL
+
+// warning: this function is broken (and ifdef'd out) in local tiles.
 void flash_monster_colour(const monster* mon, colour_t fmc_colour,
                           int fmc_delay);
-#endif
+
+
 
 enum animation_type
 {
@@ -79,5 +80,3 @@ void toggle_show_terrain();
 void reset_show_terrain();
 
 void handle_terminal_resize(bool redraw = true);
-
-#endif

@@ -3,8 +3,7 @@
  * @brief Parameters for the LOS algorithm
 **/
 
-#ifndef LOSPARAM_H
-#define LOSPARAM_H
+#pragma once
 
 // Note: find_ray relies on the fact that 2*OPC_HALF == OPC_OPAQUE.
 // On the other hand, losight tracks this explicitly.
@@ -82,7 +81,8 @@ class opacity_mons_immob : public opacity_func
 {
 public:
     opacity_mons_immob(const monster* mons) : mon(mons) {}
-    opacity_func* clone() const override {
+    opacity_func* clone() const override
+    {
         return new opacity_mons_immob(mon);
     }
 
@@ -165,5 +165,3 @@ public:
 
     virtual opacity_type opacity(const coord_def& p) const = 0;
 };
-
-#endif

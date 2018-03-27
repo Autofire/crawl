@@ -53,19 +53,6 @@ void make_hungry(int hunger_amount, bool suppress_msg,
     if (crawl_state.disables[DIS_HUNGER])
         return;
 
-#if TAG_MAJOR_VERSION == 34
-    // Lich/tree form djinn don't get exempted from food costs: infinite
-    // healing from channeling would be just too good.
-    if (you.species == SP_DJINNI)
-    {
-        if (!magic)
-            return;
-
-        contaminate_player(hunger_amount * 4 / 3, true);
-        return;
-    }
-#endif
-
     if (you_foodless())
         return;
 
@@ -131,22 +118,9 @@ void set_hunger(int new_hunger_level, bool suppress_msg)
         lessen_hunger(hunger_difference, suppress_msg);
 }
 
-bool you_foodless(bool can_eat)
+bool you_foodless(bool temp)
 {
-    return you.undead_state() == US_UNDEAD
-#if TAG_MAJOR_VERSION == 34
-        || you.species == SP_DJINNI && !can_eat
-#endif
-        ;
-}
-
-bool you_foodless_normally()
-{
-    return you.undead_state(false) == US_UNDEAD
-#if TAG_MAJOR_VERSION == 34
-        || you.species == SP_DJINNI
-#endif
-        ;
+    return you.undead_state(temp) == US_UNDEAD;
 }
 
 bool prompt_eat_item(int slot)
@@ -175,9 +149,10 @@ bool prompt_eat_item(int slot)
     return true;
 }
 
-static bool _eat_check(bool check_hunger = true, bool silent = false)
+static bool _eat_check(bool check_hunger = true, bool silent = false,
+                                                            bool temp = true)
 {
-    if (you_foodless(true))
+    if (you_foodless(temp))
     {
         if (!silent)
         {
@@ -373,56 +348,18 @@ static void _describe_food_change(int food_increment)
 // Some food types may not get a message.
 static void _finished_eating_message(food_type type)
 {
-    bool herbivorous = player_mutation_level(MUT_HERBIVOROUS) > 0;
-    bool carnivorous = player_mutation_level(MUT_CARNIVOROUS) > 0;
+    const bool herbivorous = you.get_mutation_level(MUT_HERBIVOROUS) > 0;
 
-    if (herbivorous)
+    if (type == FOOD_RATION)
     {
-        if (food_is_meaty(type))
-        {
-            mpr("Blech - you need greens!");
-            return;
-        }
+        mpr("That ration really hit the spot!");
+        return;
     }
-    else
+    else if (herbivorous && food_is_meaty(type))
     {
-        if (type == FOOD_MEAT_RATION)
-        {
-            mpr("That meat ration really hit the spot!");
-            return;
-        }
+        mpr("Blech - you need greens!");
+        return;
     }
-
-    if (carnivorous)
-    {
-        if (food_is_veggie(type))
-        {
-            mpr("Blech - you need meat!");
-            return;
-        }
-    }
-    else
-    {
-        switch (type)
-        {
-        case FOOD_BREAD_RATION:
-            mpr("That bread ration really hit the spot!");
-            return;
-        case FOOD_FRUIT:
-        {
-            string taste = getMiscString("eating_fruit");
-            if (taste.empty())
-                taste = "Eugh, buggy fruit.";
-            mpr(taste);
-            return;
-        }
-        default:
-            break;
-        }
-    }
-
-    if (type == FOOD_ROYAL_JELLY)
-        mpr("That royal jelly was delicious!");
 }
 
 // Returns which of two food items is older (true for first, else false).
@@ -446,13 +383,18 @@ static bool _compare_by_freshness(const item_def *food1, const item_def *food2)
 
     // At this point, we know both are corpses or chunks, edible
 
-    // Always offer poisonous/mutagenic chunks last.
+    // Always offer inedible chunks last.
     if (is_bad_food(*food1) && !is_bad_food(*food2))
         return false;
     if (is_bad_food(*food2) && !is_bad_food(*food1))
         return true;
 
     return food1->freshness < food2->freshness;
+}
+
+static hunger_state_t _max_chunk_state(bool like_chunks = player_likes_chunks())
+{
+    return like_chunks ? HS_VERY_FULL : HS_HUNGRY;
 }
 
 /** Make the prompt for chunk eating/corpse draining.
@@ -464,16 +406,13 @@ static bool _compare_by_freshness(const item_def *food1, const item_def *food2)
 int prompt_eat_chunks(bool only_auto)
 {
     // Full herbivores cannot eat chunks.
-    if (player_mutation_level(MUT_HERBIVOROUS) == 3)
+    if (you.get_mutation_level(MUT_HERBIVOROUS) > 0)
         return 0;
 
     // If we *know* the player can eat chunks, doesn't have the gourmand
     // effect and isn't hungry, don't prompt for chunks.
-    if (you.species != SP_VAMPIRE
-        && you.hunger_state >= HS_SATIATED + player_likes_chunks())
-    {
+    if (you.species != SP_VAMPIRE && you.hunger_state > _max_chunk_state())
         return 0;
-    }
 
     bool found_valid = false;
     vector<item_def *> chunks;
@@ -626,12 +565,10 @@ static void _chunk_nutrition_message(int nutrition)
 
 static int _apply_herbivore_nutrition_effects(int nutrition)
 {
-    int how_herbivorous = player_mutation_level(MUT_HERBIVOROUS);
-
-    while (how_herbivorous--)
-        nutrition = nutrition * 75 / 100;
-
-    return nutrition;
+    if (you.get_mutation_level(MUT_HERBIVOROUS) > 0)
+        return nutrition * 5 / 12; // Was 42.2% with Herb 3, now 41.7%
+    else
+        return nutrition;
 }
 
 static int _apply_gourmand_nutrition_effects(int nutrition, int gourmand)
@@ -640,11 +577,11 @@ static int _apply_gourmand_nutrition_effects(int nutrition, int gourmand)
                      / (GOURMAND_MAX + GOURMAND_NUTRITION_BASE);
 }
 
-static int _chunk_nutrition(int likes_chunks)
+static int _chunk_nutrition(bool likes_chunks)
 {
     int nutrition = CHUNK_BASE_NUTRITION;
 
-    if (you.hunger_state < HS_SATIATED + likes_chunks)
+    if (you.hunger_state <= _max_chunk_state(likes_chunks))
     {
         return likes_chunks ? nutrition
                             : _apply_herbivore_nutrition_effects(nutrition);
@@ -690,20 +627,13 @@ static void _eat_chunk(item_def& food)
 {
     const corpse_effect_type chunk_effect = determine_chunk_effect(food);
 
-    int likes_chunks  = player_likes_chunks(true);
+    bool likes_chunks = player_likes_chunks(true);
     int nutrition     = _chunk_nutrition(likes_chunks);
     bool suppress_msg = false; // do we display the chunk nutrition message?
     bool do_eat       = false;
 
     switch (chunk_effect)
     {
-    case CE_MUTAGEN:
-        mpr("This meat tastes really weird.");
-        mutate(RANDOM_MUTATION, "mutagenic meat");
-        did_god_conduct(DID_DELIBERATE_MUTATING, 10);
-        xom_is_stimulated(100);
-        break;
-
     case CE_CLEAN:
     {
         if (you.species == SP_GHOUL)
@@ -778,16 +708,7 @@ bool eat_item(item_def &food)
 
 bool is_bad_food(const item_def &food)
 {
-    return is_mutagenic(food) || is_forbidden_food(food) || is_noxious(food);
-}
-
-// Returns true if a food item (or corpse) is mutagenic.
-bool is_mutagenic(const item_def &food)
-{
-    if (food.base_type != OBJ_FOOD && food.base_type != OBJ_CORPSES)
-        return false;
-
-    return determine_chunk_effect(food) == CE_MUTAGEN;
+    return is_forbidden_food(food) || is_noxious(food);
 }
 
 // Returns true if a food item (or corpse) is totally inedible.
@@ -801,14 +722,14 @@ bool is_noxious(const item_def &food)
 
 // Returns true if an item of basetype FOOD or CORPSES cannot currently
 // be eaten (respecting species and mutations set).
-bool is_inedible(const item_def &item)
+bool is_inedible(const item_def &item, bool temp)
 {
     // Mummies and liches don't eat.
-    if (you_foodless(true))
+    if (you_foodless(temp))
         return true;
 
     if (item.base_type == OBJ_FOOD // XXX: removeme?
-        && !can_eat(item, true, false))
+        && !can_eat(item, true, false, temp))
     {
         return true;
     }
@@ -828,7 +749,7 @@ bool is_inedible(const item_def &item)
             item_def chunk = item;
             chunk.base_type = OBJ_FOOD;
             chunk.sub_type  = FOOD_CHUNK;
-            if (is_inedible(chunk))
+            if (is_inedible(chunk, temp))
                 return true;
         }
     }
@@ -842,7 +763,7 @@ bool is_inedible(const item_def &item)
 bool is_preferred_food(const item_def &food)
 {
     // Mummies and liches don't eat.
-    if (you_foodless(true))
+    if (you_foodless())
         return false;
 
     // Vampires don't really have a preferred food type, but they really
@@ -850,30 +771,17 @@ bool is_preferred_food(const item_def &food)
     if (you.species == SP_VAMPIRE)
         return is_blood_potion(food);
 
+    if (you.species == SP_GHOUL)
+        return food.is_type(OBJ_FOOD, FOOD_CHUNK);
+
 #if TAG_MAJOR_VERSION == 34
     if (food.is_type(OBJ_POTIONS, POT_PORRIDGE)
-        && item_type_known(food)
-        && you.species != SP_DJINNI
-        )
+        && item_type_known(food))
     {
-        return !player_mutation_level(MUT_CARNIVOROUS);
+        return you.get_mutation_level(MUT_CARNIVOROUS) == 0;
     }
 #endif
 
-    if (food.base_type != OBJ_FOOD)
-        return false;
-
-    // Poisoned, mutagenic, etc. food should never be marked as "preferred".
-    if (is_bad_food(food))
-        return false;
-
-    if (player_mutation_level(MUT_CARNIVOROUS) == 3)
-        return food_is_meaty(food.sub_type);
-
-    if (player_mutation_level(MUT_HERBIVOROUS) == 3)
-        return food_is_veggie(food.sub_type);
-
-    // No food preference.
     return false;
 }
 
@@ -906,20 +814,17 @@ bool is_forbidden_food(const item_def &food)
  *  @param food the item (must be a corpse or food item)
  *  @param suppress_msg whether to print why you can't eat it
  *  @param check_hunger whether to check how hungry you are currently
+ *  @param temp whether to factor in temporary forms
  */
-bool can_eat(const item_def &food, bool suppress_msg, bool check_hunger)
+bool can_eat(const item_def &food, bool suppress_msg, bool check_hunger,
+                                                                bool temp)
 {
 #define FAIL(msg) { if (!suppress_msg) mpr(msg); return false; }
     if (food.base_type != OBJ_FOOD && food.base_type != OBJ_CORPSES)
         FAIL("That's not food!");
 
-    // special case mutagenic chunks to skip hunger checks, as they don't give
-    // nutrition and player can get hungry by using spells etc. anyway
-    if (is_mutagenic(food))
-        check_hunger = false;
-
     // [ds] These redundant checks are now necessary - Lua might be calling us.
-    if (!_eat_check(check_hunger, suppress_msg))
+    if (!_eat_check(check_hunger, suppress_msg, temp))
         return false;
 
     if (is_noxious(food))
@@ -935,16 +840,9 @@ bool can_eat(const item_def &food, bool suppress_msg, bool check_hunger)
     else if (food.base_type == OBJ_CORPSES)
         return false;
 
-    if (food_is_veggie(food))
+    if (food_is_meaty(food))
     {
-        if (player_mutation_level(MUT_CARNIVOROUS) == 3)
-            FAIL("Sorry, you're a carnivore.")
-        else
-            return true;
-    }
-    else if (food_is_meaty(food))
-    {
-        if (player_mutation_level(MUT_HERBIVOROUS) == 3)
+        if (you.get_mutation_level(MUT_HERBIVOROUS) > 0)
             FAIL("Sorry, you're a herbivore.")
         else if (food.sub_type == FOOD_CHUNK)
         {
@@ -967,7 +865,7 @@ bool can_eat(const item_def &food, bool suppress_msg, bool check_hunger)
 /**
  * Determine the 'effective' chunk type for a given piece of carrion (chunk or
  * corpse), for the player.
- * E.g., ghouls treat rotting and mutagenic chunks as normal chunks.
+ * E.g., ghouls treat rotting and poisonous chunks as normal chunks.
  *
  * @param carrion       The actual chunk or corpse.
  * @return              A chunk type corresponding to the effect eating the
@@ -980,7 +878,7 @@ corpse_effect_type determine_chunk_effect(const item_def &carrion)
 
 /**
  * Determine the 'effective' chunk type for a given input for the player.
- * E.g., ghouls/vampires treat rotting and mutagenic chunks as normal chunks.
+ * E.g., ghouls/vampires treat rotting and poisonous chunks as normal chunks.
  *
  * @param chunktype     The actual chunk type.
  * @return              A chunk type corresponding to the effect eating a chunk
@@ -991,7 +889,6 @@ corpse_effect_type determine_chunk_effect(corpse_effect_type chunktype)
     switch (chunktype)
     {
     case CE_NOXIOUS:
-    case CE_MUTAGEN:
         if (you.species == SP_GHOUL || you.species == SP_VAMPIRE)
             chunktype = CE_CLEAN;
         break;
@@ -1081,6 +978,13 @@ int you_min_hunger()
     return 0;
 }
 
+// General starvation penalties (such as inability to use spells/abilities and
+// reduced accuracy) don't apply to bloodless vampires or starving ghouls.
+bool apply_starvation_penalties()
+{
+    return you.hunger_state <= HS_STARVING && !you_min_hunger();
+}
+
 void handle_starvation()
 {
     // Don't faint or die while eating.
@@ -1133,7 +1037,7 @@ int hunger_bars(const int hunger)
 
 string hunger_cost_string(const int hunger)
 {
-    if (you_foodless(true))
+    if (you_foodless())
         return "N/A";
 
 #ifdef WIZARD

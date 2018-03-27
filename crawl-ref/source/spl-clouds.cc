@@ -20,8 +20,10 @@
 #include "fight.h"
 #include "god-conduct.h"
 #include "items.h"
+#include "level-state-type.h"
 #include "losglobal.h"
 #include "message.h"
+#include "mon-behv.h" // ME_WHACK
 #include "ouch.h"
 #include "prompt.h"
 #include "random-pick.h"
@@ -125,15 +127,16 @@ spret_type cast_poisonous_vapours(int pow, const dist &beam, bool fail)
     }
 
     monster* mons = monster_at(beam.target);
-    if (!mons || mons->submerged() || !you.can_see(*mons))
+    if (!mons || mons->submerged())
     {
-        mpr("You can't see any monster there!");
-        return SPRET_ABORT;
+        fail_check();
+        canned_msg(MSG_SPELL_FIZZLES);
+        return SPRET_SUCCESS; // still losing a turn
     }
 
-    if (actor_cloud_immune(*mons, CLOUD_POISON))
+    if (actor_cloud_immune(*mons, CLOUD_POISON) && mons->observable())
     {
-        mprf("But poisonous clouds would do no harm to %s!",
+        mprf("But poisonous vapours would do no harm to %s!",
              mons->name(DESC_THE).c_str());
         return SPRET_ABORT;
     }
@@ -164,6 +167,8 @@ spret_type cast_poisonous_vapours(int pow, const dist &beam, bool fail)
         place_cloud(CLOUD_POISON, beam.target, cloud_duration, &you);
         mprf("Poisonous vapours surround %s!", mons->name(DESC_THE).c_str());
     }
+
+    behaviour_event(mons, ME_WHACK, &you);
 
     return SPRET_SUCCESS;
 }

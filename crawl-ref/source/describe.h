@@ -3,15 +3,16 @@
  * @brief Functions used to print information about various game objects.
 **/
 
-#ifndef DESCRIBE_H
-#define DESCRIBE_H
+#pragma once
 
 #include <functional>
 #include <sstream>
 #include <string>
 
+#include "command-type.h"
 #include "enum.h"
 #include "mon-util.h"
+#include "trap-type.h"
 
 struct monster_info;
 
@@ -51,12 +52,14 @@ void get_feature_desc(const coord_def &gc, describe_info &inf);
 bool describe_item(item_def &item, function<void (string&)> fixup_desc = nullptr);
 void get_item_desc(const item_def &item, describe_info &inf);
 void inscribe_item(item_def &item);
+void target_item(item_def &item);
 
 int describe_monsters(const monster_info &mi, bool force_seen = false,
                       const string &footer = "");
 
 void get_monster_db_desc(const monster_info &mi, describe_info &inf,
                          bool &has_stat_desc, bool force_seen = false);
+branch_type serpent_of_hell_branch(monster_type m);
 string serpent_of_hell_flavour(monster_type m);
 
 string player_spell_desc(spell_type spell);
@@ -64,6 +67,8 @@ void get_spell_desc(const spell_type spell, describe_info &inf);
 void describe_spell(spell_type spelled,
                     const monster_info *mon_owner = nullptr,
                     const item_def* item = nullptr);
+
+void describe_ability(ability_type ability);
 
 string short_ghost_description(const monster *mon, bool abbrev = false);
 string get_ghost_description(const monster_info &mi, bool concise = false);
@@ -74,12 +79,12 @@ void describe_skill(skill_type skill);
 
 int hex_chance(const spell_type spell, const int hd);
 
-#ifdef USE_TILE
 string get_command_description(const command_type cmd, bool terse);
-#endif
 
 void print_description(const string &desc);
 void print_description(const describe_info &inf);
+
+const char* get_size_adj(const size_type size, bool ignore_medium = false);
 
 const char* jewellery_base_ability_string(int subtype);
 string artefact_inscription(const item_def& item);
@@ -118,5 +123,3 @@ protected:
     int h;
     ostringstream ostr;
 };
-
-#endif

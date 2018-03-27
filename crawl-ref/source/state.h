@@ -3,11 +3,14 @@
  * @brief Game state.
 **/
 
-#ifndef STATE_H
-#define STATE_H
+#pragma once
 
 #include <vector>
 
+#include "command-type.h"
+#include "disable-type.h"
+#include "end.h"
+#include "game-exit-type.h"
 #include "player.h"
 
 class monster;
@@ -51,11 +54,16 @@ struct game_state
     int  seen_hups;         // Set to true if SIGHUP received.
 
     bool map_stat_gen;      // Set if we're generating stats on maps.
+    bool map_stat_dump_disconnect; // Set if we dump disconnected maps and exit
+                                   // under mapstat.
     bool obj_stat_gen;      // Set if we're generating object stats.
+
+    string force_map;       // Set if we're forcing a specific map to generate.
 
     game_type type;
     game_type last_type;
-    bool last_game_won;
+    game_ended_condition last_game_exit;
+    bool marked_as_won;
     bool arena_suspended;   // Set if the arena has been temporarily
                             // suspended.
     bool generating_level;
@@ -69,6 +77,7 @@ struct game_state
     vector<string> script_args;    // Arguments to scripts.
 
     bool throttle;
+    bool bypassed_startup_menu;
 
     bool show_more_prompt;  // Set to false to disable --more-- prompts.
 
@@ -97,10 +106,9 @@ struct game_state
     bool viewport_monster_hp;
     bool viewport_weapons;
 
-#ifdef USE_TILE_LOCAL
-    bool tiles_disabled;
-    bool title_screen;
-#endif
+    bool tiles_disabled; // ignored unless USE_TILE_LOCAL is defined
+    bool title_screen; // ignored unless USE_TILE_LOCAL is defined
+
     bool invisible_targeting;
 
     // Area beyond which view should be darkened,  0 = disabled.
@@ -121,6 +129,8 @@ struct game_state
     // character has been loaded from a previous save.
     std::string save_rcs_version;
 
+    string default_startup_name;
+
 protected:
     void reset_cmd_repeat();
     void reset_cmd_again();
@@ -134,6 +144,8 @@ protected:
 public:
     game_state();
 
+    void reset_game();
+
     void add_startup_error(const string &error);
     void show_startup_errors();
 
@@ -141,8 +153,8 @@ public:
 
     bool is_repeating_cmd() const;
 
-    void cancel_cmd_repeat(string reason = "");
-    void cancel_cmd_again(string reason = "");
+    void cancel_cmd_repeat(string reason = "", bool force=false);
+    void cancel_cmd_again(string reason = "", bool force=false);
     void cancel_cmd_all(string reason = "");
 
     void cant_cmd_repeat(string reason = "");
@@ -195,7 +207,7 @@ public:
 
     inline void mark_last_game_won()
     {
-        last_game_won = true;
+        marked_as_won = true;
     }
 
     friend class mon_acting;
@@ -248,5 +260,3 @@ private:
 
 bool interrupt_cmd_repeat(activity_interrupt_type ai,
                           const activity_interrupt_data &at);
-
-#endif

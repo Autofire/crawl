@@ -34,7 +34,9 @@
 #include "hints.h"
 #include "invent.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
+#include "level-state-type.h"
 #include "libutil.h"
 #include "macro.h"
 #include "makeitem.h"
@@ -67,6 +69,7 @@
 #include "target.h"
 #include "terrain.h"
 #include "throw.h"
+#include "tiles-build-specific.h"
 #include "transform.h"
 #include "uncancel.h"
 #include "unwind.h"
@@ -258,11 +261,7 @@ item_def* use_an_item(int item_type, operation_types oper, const char* prompt,
 
         // Handle inscribed item keys
         if (isadigit(keyin))
-        {
-            const int idx = digit_inscription_to_inv_index(keyin, oper);
-            if (idx >= 0)
-                target = &item_from_int(true, idx);
-        }
+            target = digit_inscription_to_item(keyin, oper);
         // TODO: handle * key
         else if (keyin == ',')
         {
@@ -311,12 +310,6 @@ bool can_wield(const item_def *weapon, bool say_reason,
                bool ignore_temporary_disability, bool unwield, bool only_known)
 {
 #define SAY(x) {if (say_reason) { x; }}
-    if (!ignore_temporary_disability && you.berserk())
-    {
-        SAY(canned_msg(MSG_TOO_BERSERK));
-        return false;
-    }
-
     if (you.melded[EQ_WEAPON] && unwield)
     {
         SAY(mpr("Your weapon is melded into your body!"));
@@ -343,7 +336,7 @@ bool can_wield(const item_def *weapon, bool say_reason,
     if (!weapon)
         return true;
 
-    if (player_mutation_level(MUT_MISSING_HAND)
+    if (you.get_mutation_level(MUT_MISSING_HAND)
             && you.hands_reqd(*weapon) == HANDS_TWO)
     {
         SAY(mpr("You can't wield that without your missing limb."));
@@ -402,21 +395,6 @@ bool can_wield(const item_def *weapon, bool say_reason,
         else
             return false;
     }
-#if TAG_MAJOR_VERSION == 34
-    else if (you.species == SP_DJINNI
-             && get_weapon_brand(*weapon) == SPWPN_ANTIMAGIC
-             && (item_type_known(*weapon) || !only_known))
-    {
-        if (say_reason)
-        {
-            mpr("As you grasp it, you feel your magic disrupted. Quickly, you stop.");
-            id_brand = true;
-        }
-        else
-            return false;
-    }
-#endif
-
     if (id_brand)
     {
         auto wwpn = const_cast<item_def*>(weapon);
@@ -509,8 +487,13 @@ bool wield_weapon(bool auto_wield, int slot, bool show_weff_messages,
         return false;
     else if (item_slot == you.equip[EQ_WEAPON])
     {
-        mpr("You are already wielding that!");
-        return true;
+        if (Options.equip_unequip)
+            item_slot = SLOT_BARE_HANDS;
+        else
+        {
+            mpr("You are already wielding that!");
+            return true;
+        }
     }
 
     // Reset the warning counter.
@@ -566,6 +549,18 @@ bool wield_weapon(bool auto_wield, int slot, bool show_weff_messages,
     }
 
     item_def& new_wpn(you.inv[item_slot]);
+
+    // Switching to a launcher while berserk is likely a mistake.
+    if (you.berserk() && is_range_weapon(new_wpn))
+    {
+        string prompt = "You can't shoot while berserk! Really wield " +
+                        new_wpn.name(DESC_INVENTORY) + "?";
+        if (!yesno(prompt.c_str(), false, 'n'))
+        {
+            canned_msg(MSG_OK);
+            return false;
+        }
+    }
 
     // Ensure wieldable
     if (!can_wield(&new_wpn, true))
@@ -715,7 +710,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
     {
         if (verbose)
         {
-            mprf("Your wings%s won't fit in that.", you.mutation[MUT_BIG_WINGS]
+            mprf("Your wings%s won't fit in that.", you.has_mutation(MUT_BIG_WINGS)
                  ? "" : ", even vestigial as they are,");
         }
         return false;
@@ -736,7 +731,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
         return false;
     }
 
-    if (player_mutation_level(MUT_MISSING_HAND) && is_shield(item))
+    if (you.get_mutation_level(MUT_MISSING_HAND) && is_shield(item))
     {
         if (verbose)
         {
@@ -776,7 +771,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
             return false;
         }
 
-        if (player_mutation_level(MUT_CLAWS, !ignore_temporary) >= 3)
+        if (you.get_mutation_level(MUT_CLAWS, !ignore_temporary) >= 3)
         {
             if (verbose)
             {
@@ -786,8 +781,8 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
             return false;
         }
 
-        if (player_mutation_level(MUT_HORNS, !ignore_temporary) >= 3
-            || player_mutation_level(MUT_ANTENNAE, !ignore_temporary) >= 3)
+        if (you.get_mutation_level(MUT_HORNS, !ignore_temporary) >= 3
+            || you.get_mutation_level(MUT_ANTENNAE, !ignore_temporary) >= 3)
         {
             if (verbose)
                 mpr("The hauberk won't fit your head.");
@@ -862,7 +857,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
     if (you.form == transformation::appendage
         && ignore_temporary
         && slot == beastly_slot(you.attribute[ATTR_APPENDAGE])
-        && you.mutation[you.attribute[ATTR_APPENDAGE]])
+        && you.has_mutation(static_cast<mutation_type>(you.attribute[ATTR_APPENDAGE])))
     {
         unwind_var<uint8_t> mutv(you.mutation[you.attribute[ATTR_APPENDAGE]], 0);
         // disable the mutation then check again
@@ -876,7 +871,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
             if (verbose)
             {
                 mprf("You can't wear a glove with your huge claw%s!",
-                     player_mutation_level(MUT_MISSING_HAND) ? "" : "s");
+                     you.get_mutation_level(MUT_MISSING_HAND) ? "" : "s");
             }
             return false;
         }
@@ -884,7 +879,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
 
     if (sub_type == ARM_BOOTS)
     {
-        if (player_mutation_level(MUT_HOOVES, false) == 3)
+        if (you.get_mutation_level(MUT_HOOVES, false) == 3)
         {
             if (verbose)
                 mpr("You can't wear boots with hooves!");
@@ -898,11 +893,7 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
             return false;
         }
 
-        if (you.species == SP_NAGA
-#if TAG_MAJOR_VERSION == 34
-            || you.species == SP_DJINNI
-#endif
-           )
+        if (you.species == SP_NAGA)
         {
             if (verbose)
                 mpr("You have no legs!");
@@ -920,14 +911,14 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
     if (slot == EQ_HELMET)
     {
         // Horns 3 & Antennae 3 mutations disallow all headgear
-        if (player_mutation_level(MUT_HORNS, false) == 3)
+        if (you.get_mutation_level(MUT_HORNS, false) == 3)
         {
             if (verbose)
                 mpr("You can't wear any headgear with your large horns!");
             return false;
         }
 
-        if (player_mutation_level(MUT_ANTENNAE, false) == 3)
+        if (you.get_mutation_level(MUT_ANTENNAE, false) == 3)
         {
             if (verbose)
                 mpr("You can't wear any headgear with your large antennae!");
@@ -937,21 +928,21 @@ bool can_wear_armour(const item_def &item, bool verbose, bool ignore_temporary)
         // Soft helmets (caps and wizard hats) always fit, otherwise.
         if (is_hard_helmet(item))
         {
-            if (player_mutation_level(MUT_HORNS, false))
+            if (you.get_mutation_level(MUT_HORNS, false))
             {
                 if (verbose)
                     mpr("You can't wear that with your horns!");
                 return false;
             }
 
-            if (player_mutation_level(MUT_BEAK, false))
+            if (you.get_mutation_level(MUT_BEAK, false))
             {
                 if (verbose)
                     mpr("You can't wear that with your beak!");
                 return false;
             }
 
-            if (player_mutation_level(MUT_ANTENNAE, false))
+            if (you.get_mutation_level(MUT_ANTENNAE, false))
             {
                 if (verbose)
                     mpr("You can't wear that with your antennae!");
@@ -1035,14 +1026,13 @@ bool wear_armour(int item)
 
     if (item == -1)
     {
-        item = prompt_invent_item("Wear which item", MT_INVLIST, OBJ_ARMOUR,
+        item = prompt_invent_item("Wear which item?", MT_INVLIST, OBJ_ARMOUR,
                                   OPER_WEAR, invprompt_flag::no_warning);
         if (prompt_failed(item))
             return false;
     }
 
     item_def &invitem = you.inv[item];
-    const equipment_type slot = get_armour_slot(invitem);
     // First, let's check for any conditions that would make it impossible to
     // equip the given item
     if (!invitem.defined())
@@ -1082,6 +1072,7 @@ bool wear_armour(int item)
     }
 
     bool swapping = false;
+    const equipment_type slot = get_armour_slot(invitem);
     if ((slot == EQ_CLOAK
            || slot == EQ_HELMET
            || slot == EQ_GLOVES
@@ -1205,7 +1196,7 @@ static vector<equipment_type> _current_ring_types()
         {
             const equipment_type slot = (equipment_type)(EQ_RING_ONE + i);
 
-            if (player_mutation_level(MUT_MISSING_HAND)
+            if (you.get_mutation_level(MUT_MISSING_HAND)
                 && slot == EQ_RING_EIGHT)
             {
                 continue;
@@ -1217,7 +1208,7 @@ static vector<equipment_type> _current_ring_types()
     }
     else
     {
-        if (player_mutation_level(MUT_MISSING_HAND) == 0)
+        if (you.get_mutation_level(MUT_MISSING_HAND) == 0)
             ret.push_back(EQ_LEFT_RING);
         ret.push_back(EQ_RIGHT_RING);
     }
@@ -2042,7 +2033,7 @@ static void _vampire_corpse_help()
 
 void drink(item_def* potion)
 {
-    if (you_foodless(true))
+    if (you_foodless())
     {
         mpr("You can't drink.");
         return;
@@ -2112,6 +2103,9 @@ void drink(item_def* potion)
         // Always drink oldest potion.
         remove_oldest_perishable_item(*potion);
     }
+
+    // We'll need this later, after destroying the item.
+    const bool was_exp = potion->sub_type == POT_EXPERIENCE;
     if (in_inventory(*potion))
     {
         dec_inv_item_quantity(potion->link, 1);
@@ -2121,8 +2115,9 @@ void drink(item_def* potion)
         dec_mitm_item_quantity(potion->index(), 1);
     count_action(CACT_USE, OBJ_POTIONS);
     you.turn_is_over = true;
+
     // This got deferred from PotionExperience::effect to prevent SIGHUP abuse.
-    if (potion->sub_type == POT_EXPERIENCE)
+    if (was_exp)
         level_change();
 }
 
@@ -2199,9 +2194,9 @@ static void _rebrand_weapon(item_def& wpn)
     convert2bad(wpn);
 }
 
-static string _item_name(item_def &item) {
-    return item.name(in_inventory(item) ? DESC_YOUR
-                                        : DESC_THE);
+static string _item_name(item_def &item)
+{
+    return item.name(in_inventory(item) ? DESC_YOUR : DESC_THE);
 }
 
 static void _brand_weapon(item_def &wpn)
@@ -2527,7 +2522,7 @@ void random_uselessness()
         break;
 
     case 5:
-        if (player_mutation_level(MUT_BEAK) || one_chance_in(3))
+        if (you.get_mutation_level(MUT_BEAK) || one_chance_in(3))
             mpr("Your brain hurts!");
         else if (you.species == SP_MUMMY || coinflip())
             mpr("Your ears itch!");
@@ -2568,7 +2563,6 @@ static void _handle_read_book(item_def& book)
 #endif
 
     set_ident_flags(book, ISFLAG_IDENT_MASK);
-    mark_had_book(book);
     read_book(book);
 }
 
@@ -2598,13 +2592,13 @@ static bool _is_cancellable_scroll(scroll_type scroll)
 {
     return scroll == SCR_IDENTIFY
            || scroll == SCR_BLINKING
-           || scroll == SCR_RECHARGING
            || scroll == SCR_ENCHANT_ARMOUR
            || scroll == SCR_AMNESIA
            || scroll == SCR_REMOVE_CURSE
 #if TAG_MAJOR_VERSION == 34
            || scroll == SCR_CURSE_ARMOUR
            || scroll == SCR_CURSE_JEWELLERY
+           || scroll == SCR_RECHARGING
 #endif
            || scroll == SCR_BRAND_WEAPON
            || scroll == SCR_ENCHANT_WEAPON
@@ -2680,12 +2674,6 @@ string cannot_read_item_reason(const item_def &item)
     if (you.duration[DUR_NO_SCROLLS])
         return "You cannot read scrolls in your current state!";
 
-#if TAG_MAJOR_VERSION == 34
-    // Prevent hot lava orcs reading scrolls
-    if (you.species == SP_LAVA_ORC && temperature_effect(LORC_NO_SCROLLS))
-        return "You'd burn any scroll you tried to read!";
-#endif
-
     // don't waste the player's time reading known scrolls in situations where
     // they'd be useless
 
@@ -2703,6 +2691,18 @@ string cannot_read_item_reason(const item_def &item)
                 return "You have no spells to forget!";
             return "";
 
+        case SCR_ENCHANT_ARMOUR:
+            return _no_items_reason(OSEL_ENCHANTABLE_ARMOUR, true);
+
+        case SCR_ENCHANT_WEAPON:
+            return _no_items_reason(OSEL_ENCHANTABLE_WEAPON, true);
+
+        case SCR_IDENTIFY:
+            return _no_items_reason(OSEL_UNIDENT, true);
+
+        case SCR_REMOVE_CURSE:
+            return _no_items_reason(OSEL_CURSED_WORN);
+
 #if TAG_MAJOR_VERSION == 34
         case SCR_CURSE_WEAPON:
             if (!you.weapon())
@@ -2715,24 +2715,7 @@ string cannot_read_item_reason(const item_def &item)
             if (get_weapon_brand(*you.weapon()) == SPWPN_HOLY_WRATH)
                 return "Holy weapons cannot be cursed!";
             return "";
-#endif
 
-        case SCR_ENCHANT_ARMOUR:
-            return _no_items_reason(OSEL_ENCHANTABLE_ARMOUR, true);
-
-        case SCR_ENCHANT_WEAPON:
-            return _no_items_reason(OSEL_ENCHANTABLE_WEAPON, true);
-
-        case SCR_IDENTIFY:
-            return _no_items_reason(OSEL_UNIDENT, true);
-
-        case SCR_RECHARGING:
-            return _no_items_reason(OSEL_RECHARGE);
-
-        case SCR_REMOVE_CURSE:
-            return _no_items_reason(OSEL_CURSED_WORN);
-
-#if TAG_MAJOR_VERSION == 34
         case SCR_CURSE_ARMOUR:
             return _no_items_reason(OSEL_UNCURSED_WORN_ARMOUR);
 
@@ -2788,7 +2771,7 @@ void read(item_def* scroll)
         return;
     }
 
-    if (player_mutation_level(MUT_BLURRY_VISION)
+    if (you.get_mutation_level(MUT_BLURRY_VISION)
         && !i_feel_safe(false, false, true)
         && !yesno("Really read with blurry vision while enemies are nearby?",
                   false, 'n'))
@@ -2809,12 +2792,12 @@ void read(item_def* scroll)
 
     // if we have blurry vision, we need to start a delay before the actual
     // scroll effect kicks in.
-    if (player_mutation_level(MUT_BLURRY_VISION))
+    if (you.get_mutation_level(MUT_BLURRY_VISION))
     {
         // takes 0.5, 1, 2 extra turns
-        const int turns = max(1, player_mutation_level(MUT_BLURRY_VISION) - 1);
+        const int turns = max(1, you.get_mutation_level(MUT_BLURRY_VISION) - 1);
         start_delay<BlurryScrollDelay>(turns, *scroll);
-        if (player_mutation_level(MUT_BLURRY_VISION) == 1)
+        if (you.get_mutation_level(MUT_BLURRY_VISION) == 1)
             you.time_taken /= 2;
     }
     else
@@ -2872,7 +2855,7 @@ void read_scroll(item_def& scroll)
         }
 
         const bool safely_cancellable
-            = alreadyknown && !player_mutation_level(MUT_BLURRY_VISION);
+            = alreadyknown && !you.get_mutation_level(MUT_BLURRY_VISION);
 
         if (orb_limits_translocation())
         {
@@ -3052,16 +3035,6 @@ void read_scroll(item_def& scroll)
         cancel_scroll = !_identify(alreadyknown, pre_succ_msg, link);
         break;
 
-    case SCR_RECHARGING:
-        if (!alreadyknown)
-        {
-            mpr(pre_succ_msg);
-            mpr("It is a scroll of recharging.");
-            // included in default force_more_message (to show it before menu)
-        }
-        cancel_scroll = (recharge_wand(alreadyknown, pre_succ_msg) == -1);
-        break;
-
     case SCR_ENCHANT_ARMOUR:
         if (!alreadyknown)
         {
@@ -3072,7 +3045,6 @@ void read_scroll(item_def& scroll)
         cancel_scroll =
             (_handle_enchant_armour(alreadyknown, pre_succ_msg) == -1);
         break;
-
 #if TAG_MAJOR_VERSION == 34
     // Should always be identified by Ashenzari.
     case SCR_CURSE_ARMOUR:
@@ -3080,6 +3052,13 @@ void read_scroll(item_def& scroll)
     {
         const bool armour = which_scroll == SCR_CURSE_ARMOUR;
         cancel_scroll = !curse_item(armour, pre_succ_msg);
+        break;
+    }
+
+    case SCR_RECHARGING:
+    {
+        mpr("This item has been removed, sorry!");
+        cancel_scroll = true;
         break;
     }
 #endif
@@ -3146,7 +3125,9 @@ void read_scroll(item_def& scroll)
         && which_scroll != SCR_ENCHANT_WEAPON
         && which_scroll != SCR_IDENTIFY
         && which_scroll != SCR_ENCHANT_ARMOUR
+#if TAG_MAJOR_VERSION == 34
         && which_scroll != SCR_RECHARGING
+#endif
         && which_scroll != SCR_AMNESIA)
     {
         mprf("It %s a %s.",
@@ -3319,14 +3300,6 @@ void tile_item_use(int idx)
         case OBJ_FOOD:
             if (check_warning_inscriptions(item, OPER_EAT))
                 eat_food(idx);
-            return;
-
-        case OBJ_BOOKS:
-            if (item_is_spellbook(item)
-                && check_warning_inscriptions(item, OPER_MEMORISE))
-            {
-                learn_spell_from(item);
-            }
             return;
 
         case OBJ_SCROLLS:

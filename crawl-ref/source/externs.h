@@ -3,8 +3,7 @@
  * @brief Definitions for common structs.
 **/
 
-#ifndef EXTERNS_H
-#define EXTERNS_H
+#pragma once
 
 #define __STDC_FORMAT_MACROS
 #include <cinttypes>
@@ -21,10 +20,24 @@
 #include <vector>
 
 #include "bitary.h"
+#include "deck-rarity-type.h"
+#include "description-level-type.h"
+#include "dungeon-feature-type.h"
 #include "enum.h"
+#include "spell-type.h"
+#include "monster-type.h"
+#include "branch-type.h"
 #include "fixedarray.h"
-#include "mpr.h"
+#include "kill-category.h"
+#include "killer-type.h"
+#include "map-marker-type.h"
+#include "menu-type.h"
+
+#include "object-class-type.h"
 #include "pattern.h"
+#include "skill-type.h"
+#include "shop-type.h"
+#include "cloud-type.h"
 #include "store.h"
 #include "tiledef_defines.h"
 
@@ -529,14 +542,13 @@ struct item_def
         short charges;              ///< # of charges held by a wand, etc
         short initial_cards;        ///< the # of cards a deck *started* with
         short net_durability;       ///< damage dealt to a net
+        short tithe_state;          ///< tithe state of a stack of gold
     };
     union
     {
         // These must all be the same size!
         short plus2;        ///< legacy/generic name for this union
-        short used_count;   ///< the # of known times it was used (decks, wands)
-                            // for wands, may hold negative ZAPCOUNT knowledge
-                            // info (e.g. "recharged", "empty", "unknown")
+        short used_count;   ///< the # of times a deck was used
         short net_placed;   ///< is this throwing net trapping something?
         short skill_points; ///< # of skill points a manual gives
         short stash_freshness; ///< where stash.cc stores corpse freshness
@@ -685,6 +697,7 @@ public:
     bool notified_hp_full;
     coord_def pos;
     int travel_speed;
+    int direction;
 
     FixedVector<run_check_dir,3> run_check; // array of grids to check
 
@@ -722,6 +735,7 @@ public:
 private:
     void set_run_check(int index, int compass_dir);
     bool run_should_stop() const;
+    bool diag_run_passes_door() const;
 };
 
 enum mon_spell_slot_flag
@@ -885,5 +899,3 @@ struct cglyph_t
 };
 
 typedef FixedArray<bool, NUM_OBJECT_CLASSES, MAX_SUBTYPES> id_arr;
-
-#endif // EXTERNS_H

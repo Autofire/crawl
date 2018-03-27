@@ -41,6 +41,7 @@
 #include "shout.h"
 #include "spl-summoning.h"
 #include "state.h"
+#include "stepdown.h"
 #include "stringutil.h"
 #include "target.h"
 #include "terrain.h"
@@ -70,7 +71,9 @@ melee_attack::melee_attack(actor *attk, actor *defn,
     ::attack(attk, defn),
 
     attack_number(attack_num), effective_attack_number(effective_attack_num),
-    cleaving(is_cleaving), is_riposte(false)
+    cleaving(is_cleaving), is_riposte(false),
+    wu_jian_attack(WU_JIAN_ATTACK_NONE),
+    wu_jian_number_of_targets(1)
 {
     attack_occurred = false;
     damage_brand = attacker->damage_brand(attack_number);
@@ -94,7 +97,7 @@ bool melee_attack::handle_phase_attempted()
     if (defender && (!adjacent(attack_position, defender->pos())
                      && !can_reach())
         || attk_type == AT_CONSTRICT
-           && (!attacker->can_constrict(defender)
+           && (!attacker->can_constrict(defender, true)
                || attacker->is_monster() && attacker->mid == MID_PLAYER))
     {
         --effective_attack_number;
@@ -145,8 +148,11 @@ bool melee_attack::handle_phase_attempted()
     if (attacker->is_player())
     {
         // Set delay now that we know the attack won't be cancelled.
-        if (!is_riposte)
+        if (!is_riposte
+             && (wu_jian_attack == WU_JIAN_ATTACK_NONE))
+        {
             you.time_taken = you.attack_delay().roll();
+        }
 
         const caction_type cact_typ = is_riposte ? CACT_RIPOSTE : CACT_MELEE;
         if (weapon)
@@ -313,7 +319,7 @@ void melee_attack::apply_black_mark_effects()
 {
     // Less reliable effects for players.
     if (attacker->is_player()
-        && you.mutation[MUT_BLACK_MARK]
+        && you.has_mutation(MUT_BLACK_MARK)
         && one_chance_in(5)
         || attacker->is_monster()
            && attacker->as_monster()->has_ench(ENCH_BLACK_MARK))
@@ -448,6 +454,16 @@ bool melee_attack::handle_phase_hit()
     // Check for weapon brand & inflict that damage too
     apply_damage_brand();
 
+    // Fireworks when using Serpent's Lash to kill.
+    if (!defender->alive()
+        && defender->as_monster()->can_bleed()
+        && wu_jian_has_momentum(wu_jian_attack))
+    {
+        blood_spray(defender->pos(), defender->as_monster()->type,
+                    damage_done / 5);
+        defender->as_monster()->flags |= MF_EXPLODE_KILL;
+    }
+
     if (check_unrand_effects())
         return false;
 
@@ -471,9 +487,6 @@ bool melee_attack::handle_phase_hit()
         // the player is hit, each of them will verify their own required
         // parameters.
         do_passive_freeze();
-#if TAG_MAJOR_VERSION == 34
-        do_passive_heat();
-#endif
         emit_foul_stench();
     }
 
@@ -535,7 +548,9 @@ bool melee_attack::handle_phase_damaged()
 
 bool melee_attack::handle_phase_aux()
 {
-    if (attacker->is_player() && !cleaving)
+    if (attacker->is_player()
+        && !cleaving
+        && wu_jian_attack != WU_JIAN_ATTACK_TRIGGERED_AUX)
     {
         // returns whether an aux attack successfully took place
         // additional attacks from cleave don't get aux
@@ -566,12 +581,12 @@ bool melee_attack::handle_phase_aux()
 static void _hydra_devour(monster &victim)
 {
     // what's the highest hunger level this lets the player get to?
-    const hunger_state_t max_hunger =
-        static_cast<hunger_state_t>(HS_SATIATED + player_likes_chunks());
+    const hunger_state_t max_hunger = player_likes_chunks() ? HS_ENGORGED
+                                                            : HS_SATIATED;
 
     // will eating this actually fill the player up?
     const bool filling = !have_passive(passive_t::goldify_corpses)
-                          && player_mutation_level(MUT_HERBIVOROUS, false) < 3
+                          && you.get_mutation_level(MUT_HERBIVOROUS, false) == 0
                           && you.hunger_state <= max_hunger
                           && you.hunger_state < HS_ENGORGED;
 
@@ -698,7 +713,7 @@ bool melee_attack::handle_phase_end()
     if (!cleave_targets.empty())
     {
         attack_cleave_targets(*attacker, cleave_targets, attack_number,
-                              effective_attack_number);
+                              effective_attack_number, wu_jian_attack);
     }
 
     // Check for passive mutation effects.
@@ -805,6 +820,10 @@ bool melee_attack::attack()
             ev_margin = AUTOMATIC_HIT;
             shield_blocked = false;
         }
+
+        // Serpent's Lash does not miss
+        if (wu_jian_has_momentum(wu_jian_attack))
+           ev_margin = AUTOMATIC_HIT;
     }
 
     if (shield_blocked)
@@ -817,8 +836,9 @@ bool melee_attack::attack()
             // Check for defender Spines
             do_spines();
 
-            // Spines can kill!
-            if (!attacker->alive())
+            // Spines can kill! With Usk's pain bond, they can even kill the
+            // defender.
+            if (!attacker->alive() || !defender->alive())
                 return false;
         }
 
@@ -970,39 +990,39 @@ class AuxKick: public AuxAttackType
 {
 public:
     AuxKick()
-    : AuxAttackType(-1, "kick") { };
+    : AuxAttackType(5, "kick") { };
 
     int get_damage() const override
     {
         if (you.has_usable_hooves())
         {
             // Max hoof damage: 10.
-            return player_mutation_level(MUT_HOOVES) * 5 / 3;
+            return damage + you.get_mutation_level(MUT_HOOVES) * 5 / 3;
         }
 
         if (you.has_usable_talons())
         {
             // Max talon damage: 9.
-            return 1 + player_mutation_level(MUT_TALONS);
+            return damage + 1 + you.get_mutation_level(MUT_TALONS);
         }
 
         // Max spike damage: 8.
         // ... yes, apparently tentacle spikes are "kicks".
-        return player_mutation_level(MUT_TENTACLE_SPIKE);
+        return damage + you.get_mutation_level(MUT_TENTACLE_SPIKE);
     }
 
     string get_verb() const override
     {
         if (you.has_usable_talons())
             return "claw";
-        if (player_mutation_level(MUT_TENTACLE_SPIKE))
+        if (you.get_mutation_level(MUT_TENTACLE_SPIKE))
             return "pierce";
         return name;
     }
 
     string get_name() const override
     {
-        if (player_mutation_level(MUT_TENTACLE_SPIKE))
+        if (you.get_mutation_level(MUT_TENTACLE_SPIKE))
             return "tentacle spike";
         return name;
     }
@@ -1016,7 +1036,7 @@ public:
 
     int get_damage() const override
     {
-        return damage + player_mutation_level(MUT_HORNS) * 3;
+        return damage + you.get_mutation_level(MUT_HORNS) * 3;
     }
 };
 
@@ -1035,12 +1055,12 @@ public:
 
     int get_damage() const override
     {
-        return damage + max(0, player_mutation_level(MUT_STINGER) * 2 - 1);
+        return damage + max(0, you.get_mutation_level(MUT_STINGER) * 2 - 1);
     }
 
     int get_brand() const override
     {
-        return player_mutation_level(MUT_STINGER) ? SPWPN_VENOM : SPWPN_NORMAL;
+        return you.get_mutation_level(MUT_STINGER) ? SPWPN_VENOM : SPWPN_NORMAL;
     }
 };
 
@@ -1088,12 +1108,12 @@ public:
     int get_damage() const override
     {
         const int fang_damage = you.has_usable_fangs() * 2;
-        if (player_mutation_level(MUT_ANTIMAGIC_BITE))
+        if (you.get_mutation_level(MUT_ANTIMAGIC_BITE))
             return fang_damage + div_rand_round(you.get_hit_dice(), 3);
 
         const int str_damage = div_rand_round(max(you.strength()-10, 0), 5);
 
-        if (player_mutation_level(MUT_ACIDIC_BITE))
+        if (you.get_mutation_level(MUT_ACIDIC_BITE))
             return fang_damage + str_damage;
 
         return fang_damage + str_damage;
@@ -1101,10 +1121,10 @@ public:
 
     int get_brand() const override
     {
-        if (player_mutation_level(MUT_ANTIMAGIC_BITE))
+        if (you.get_mutation_level(MUT_ANTIMAGIC_BITE))
             return SPWPN_ANTIMAGIC;
 
-        if (player_mutation_level(MUT_ACIDIC_BITE))
+        if (you.get_mutation_level(MUT_ACIDIC_BITE))
             return SPWPN_ACID;
 
         return SPWPN_NORMAL;
@@ -1173,6 +1193,9 @@ void melee_attack::player_aux_setup(unarmed_attack_type atk)
     damage_brand = (brand_type)aux->get_brand();
     aux_attack = aux->get_name();
     aux_verb = aux->get_verb();
+
+    if (wu_jian_attack != WU_JIAN_ATTACK_NONE)
+        wu_jian_attack = WU_JIAN_ATTACK_TRIGGERED_AUX;
 
     if (atk == UNAT_BITE
         && _vamp_wants_blood_from_monster(defender->as_monster()))
@@ -1262,7 +1285,7 @@ bool melee_attack::player_aux_unarmed()
         // Determine and set damage and attack words.
         player_aux_setup(atk);
 
-        if (atk == UNAT_CONSTRICT && !attacker->can_constrict(defender))
+        if (atk == UNAT_CONSTRICT && !attacker->can_constrict(defender, true))
             continue;
 
         to_hit = random2(calc_your_to_hit_unarmed(atk));
@@ -1323,66 +1346,69 @@ bool melee_attack::player_aux_apply(unarmed_attack_type atk)
     aux_damage = inflict_damage(aux_damage, BEAM_MISSILE);
     damage_done = aux_damage;
 
-    if (atk == UNAT_CONSTRICT)
-        attacker->start_constricting(*defender);
-
-    if (damage_done > 0 || atk == UNAT_CONSTRICT)
+    if (defender->alive())
     {
-        player_announce_aux_hit();
+        if (atk == UNAT_CONSTRICT)
+            attacker->start_constricting(*defender);
 
-        if (damage_brand == SPWPN_ACID)
-            defender->splash_with_acid(&you, 3);
-
-        if (damage_brand == SPWPN_VENOM && coinflip())
-            poison_monster(defender->as_monster(), &you);
-
-        // Normal vampiric biting attack, not if already got stabbing special.
-        if (damage_brand == SPWPN_VAMPIRISM && you.species == SP_VAMPIRE
-            && (!stab_attempt || stab_bonus <= 0))
+        if (damage_done > 0 || atk == UNAT_CONSTRICT)
         {
-            _player_vampire_draws_blood(defender->as_monster(), damage_done);
-        }
+            player_announce_aux_hit();
 
-        if (damage_brand == SPWPN_ANTIMAGIC && you.mutation[MUT_ANTIMAGIC_BITE]
-            && damage_done > 0)
-        {
-            const bool spell_user = defender->antimagic_susceptible();
+            if (damage_brand == SPWPN_ACID)
+                defender->splash_with_acid(&you, 3);
 
-            antimagic_affects_defender(damage_done * 32);
+            if (damage_brand == SPWPN_VENOM && coinflip())
+                poison_monster(defender->as_monster(), &you);
 
-            // MP drain suppressed under Pakellas, but antimagic still applies.
-            if (!have_passive(passive_t::no_mp_regen) || spell_user)
+            // Normal vampiric biting attack, not if already got stabbing special.
+            if (damage_brand == SPWPN_VAMPIRISM && you.species == SP_VAMPIRE
+                && (!stab_attempt || stab_bonus <= 0))
             {
-                mprf("You %s %s %s.",
-                     have_passive(passive_t::no_mp_regen) ? "disrupt" : "drain",
-                     defender->as_monster()->pronoun(PRONOUN_POSSESSIVE).c_str(),
-                     spell_user ? "magic" : "power");
+                _player_vampire_draws_blood(defender->as_monster(), damage_done);
             }
 
-            if (!have_passive(passive_t::no_mp_regen)
-                && you.magic_points != you.max_magic_points
-                && !defender->as_monster()->is_summoned()
-                && !mons_is_firewood(*defender->as_monster()))
+            if (damage_brand == SPWPN_ANTIMAGIC && you.has_mutation(MUT_ANTIMAGIC_BITE)
+                && damage_done > 0)
             {
-                int drain = random2(damage_done * 2) + 1;
-                // Augment mana drain--1.25 "standard" effectiveness at 0 mp,
-                // 0.25 at mana == max_mana
-                drain = (int)((1.25 - you.magic_points / you.max_magic_points)
-                              * drain);
-                if (drain)
+                const bool spell_user = defender->antimagic_susceptible();
+
+                antimagic_affects_defender(damage_done * 32);
+
+                // MP drain suppressed under Pakellas, but antimagic still applies.
+                if (!have_passive(passive_t::no_mp_regen) || spell_user)
                 {
-                    mpr("You feel invigorated.");
-                    inc_mp(drain);
+                    mprf("You %s %s %s.",
+                         have_passive(passive_t::no_mp_regen) ? "disrupt" : "drain",
+                         defender->as_monster()->pronoun(PRONOUN_POSSESSIVE).c_str(),
+                         spell_user ? "magic" : "power");
+                }
+
+                if (!have_passive(passive_t::no_mp_regen)
+                    && you.magic_points != you.max_magic_points
+                    && !defender->as_monster()->is_summoned()
+                    && !mons_is_firewood(*defender->as_monster()))
+                {
+                    int drain = random2(damage_done * 2) + 1;
+                    // Augment mana drain--1.25 "standard" effectiveness at 0 mp,
+                    // 0.25 at mana == max_mana
+                    drain = (int)((1.25 - you.magic_points / you.max_magic_points)
+                                  * drain);
+                    if (drain)
+                    {
+                        mpr("You feel invigorated.");
+                        inc_mp(drain);
+                    }
                 }
             }
         }
-    }
-    else // no damage was done
-    {
-        mprf("You %s %s%s.",
-             aux_verb.c_str(),
-             defender->name(DESC_THE).c_str(),
-             you.can_see(*defender) ? ", but do no damage" : "");
+        else // no damage was done
+        {
+            mprf("You %s %s%s.",
+                 aux_verb.c_str(),
+                 defender->name(DESC_THE).c_str(),
+                 you.can_see(*defender) ? ", but do no damage" : "");
+        }
     }
 
     if (defender->as_monster()->hit_points < 1)
@@ -1453,7 +1479,7 @@ int melee_attack::player_apply_misc_modifiers(int damage)
     if (you.duration[DUR_MIGHT] || you.duration[DUR_BERSERK])
         damage += 1 + random2(10);
 
-    if (you.species != SP_VAMPIRE && you.hunger_state <= HS_STARVING)
+    if (apply_starvation_penalties())
         damage -= random2(5);
 
     return damage;
@@ -1466,9 +1492,12 @@ int melee_attack::player_apply_misc_modifiers(int damage)
 // to the base damage of the weapon.
 int melee_attack::player_apply_final_multipliers(int damage)
 {
-    //cleave damage modifier
+    // cleave damage modifier
     if (cleaving)
         damage = cleave_damage_mod(damage);
+
+    // martial damage modifier (wu jian)
+    damage = martial_damage_mod(damage);
 
     // not additive, statues are supposed to be bad with tiny toothpicks but
     // deal crushing blows with big weapons
@@ -1581,14 +1610,18 @@ void melee_attack::set_attack_verb(int damage)
             attack_verb = "carve";
             verb_degree = "like the proverbial ham";
         }
-        else if (defender_genus == MONS_TENGU && one_chance_in(3))
+        else if ((defender_genus == MONS_TENGU
+                  || get_mon_shape(defender_genus) == MON_SHAPE_BIRD)
+                 && one_chance_in(3))
         {
             attack_verb = "carve";
             verb_degree = "like a turkey";
         }
         else if ((defender_genus == MONS_YAK || defender_genus == MONS_YAKTAUR)
                  && Options.has_fake_lang(flang_t::grunt))
+        {
             attack_verb = "shave";
+        }
         else
         {
             static const char * const slice_desc[][2] =
@@ -2090,7 +2123,7 @@ void melee_attack::apply_staff_damage()
     if (!weapon)
         return;
 
-    if (attacker->is_player() && player_mutation_level(MUT_NO_ARTIFICE))
+    if (attacker->is_player() && you.get_mutation_level(MUT_NO_ARTIFICE))
         return;
 
     if (weapon->base_type != OBJ_STAVES)
@@ -2247,7 +2280,7 @@ void melee_attack::player_stab_check()
 bool melee_attack::player_good_stab()
 {
     return wpn_skill == SK_SHORT_BLADES
-           || player_mutation_level(MUT_PAWS)
+           || you.get_mutation_level(MUT_PAWS)
            || player_equip_unrand(UNRAND_BOOTS_ASSASSIN)
               && (!weapon || is_melee_weapon(*weapon));
 }
@@ -2875,7 +2908,7 @@ void melee_attack::mons_apply_attack_flavour()
         break;
 
     case AF_ENGULF:
-        if (x_chance_in_y(2, 3) && attacker->can_constrict(defender))
+        if (x_chance_in_y(2, 3) && attacker->can_constrict(defender, true))
         {
             if (defender->is_player() && !you.duration[DUR_WATER_HOLD]
                 && !you.duration[DUR_WATER_HOLD_IMMUNITY])
@@ -2993,7 +3026,7 @@ void melee_attack::mons_apply_attack_flavour()
 
 void melee_attack::do_passive_freeze()
 {
-    if (you.mutation[MUT_PASSIVE_FREEZE]
+    if (you.has_mutation(MUT_PASSIVE_FREEZE)
         && attacker->alive()
         && adjacent(you.pos(), attacker->as_monster()->pos()))
     {
@@ -3025,50 +3058,14 @@ void melee_attack::do_passive_freeze()
     }
 }
 
-#if TAG_MAJOR_VERSION == 34
-void melee_attack::do_passive_heat()
-{
-    if (you.species == SP_LAVA_ORC && temperature_effect(LORC_PASSIVE_HEAT)
-        && attacker->alive()
-        && grid_distance(you.pos(), attacker->as_monster()->pos()) == 1)
-    {
-        bolt beam;
-        beam.flavour = BEAM_FIRE;
-        beam.thrower = KILL_YOU;
-
-        monster* mon = attacker->as_monster();
-
-        const int orig_hurted = random2(5);
-        int hurted = mons_adjust_flavoured(mon, beam, orig_hurted);
-
-        if (!hurted)
-            return;
-
-        simple_monster_message(*mon, " is singed by your heat.");
-
-#ifndef USE_TILE
-        flash_monster_colour(mon, LIGHTRED, 200);
-#endif
-
-        mon->hurt(&you, hurted);
-
-        if (mon->alive())
-        {
-            mon->expose_to_element(BEAM_FIRE, orig_hurted);
-            print_wounds(*mon);
-        }
-    }
-}
-#endif
-
 void melee_attack::mons_do_eyeball_confusion()
 {
-    if (you.mutation[MUT_EYEBALLS]
+    if (you.has_mutation(MUT_EYEBALLS)
         && attacker->alive()
         && adjacent(you.pos(), attacker->as_monster()->pos())
-        && x_chance_in_y(player_mutation_level(MUT_EYEBALLS), 20))
+        && x_chance_in_y(you.get_mutation_level(MUT_EYEBALLS), 20))
     {
-        const int ench_pow = player_mutation_level(MUT_EYEBALLS) * 30;
+        const int ench_pow = you.get_mutation_level(MUT_EYEBALLS) * 30;
         monster* mon = attacker->as_monster();
 
         if (mon->check_res_magic(ench_pow) <= 0)
@@ -3092,7 +3089,7 @@ void melee_attack::mons_do_tendril_disarm()
     const int adj_mon_hd = mon->is_fighter() ? mon->get_hit_dice() * 3 / 2
                                              : mon->get_hit_dice();
 
-    if (player_mutation_level(MUT_TENDRILS)
+    if (you.get_mutation_level(MUT_TENDRILS)
         && one_chance_in(5)
         && (random2(you.dex()) > adj_mon_hd
             || random2(you.strength()) > adj_mon_hd))
@@ -3115,7 +3112,7 @@ void melee_attack::do_spines()
 
     if (defender->is_player())
     {
-        const int mut = player_mutation_level(MUT_SPINY);
+        const int mut = you.get_mutation_level(MUT_SPINY);
 
         if (mut && attacker->alive() && coinflip())
         {
@@ -3169,11 +3166,11 @@ void melee_attack::emit_foul_stench()
 {
     monster* mon = attacker->as_monster();
 
-    if (you.mutation[MUT_FOUL_STENCH]
+    if (you.has_mutation(MUT_FOUL_STENCH)
         && attacker->alive()
         && adjacent(you.pos(), mon->pos()))
     {
-        const int mut = player_mutation_level(MUT_FOUL_STENCH);
+        const int mut = you.get_mutation_level(MUT_FOUL_STENCH);
 
         if (one_chance_in(3))
             mon->sicken(50 + random2(100));
@@ -3227,7 +3224,7 @@ void melee_attack::do_minotaur_retaliation()
         return;
     }
     // This will usually be 2, but could be 3 if the player mutated more.
-    const int mut = player_mutation_level(MUT_HORNS);
+    const int mut = you.get_mutation_level(MUT_HORNS);
 
     if (5 * you.strength() + 7 * you.dex() > random2(600))
     {
@@ -3363,6 +3360,21 @@ int melee_attack::cleave_damage_mod(int dam)
     return div_rand_round(dam * 7, 10);
 }
 
+// Martial strikes get modified by momentum and maneuver specific damage mods.
+int melee_attack::martial_damage_mod(int dam)
+{
+    if (wu_jian_has_momentum(wu_jian_attack))
+        dam = div_rand_round(dam * 14, 10);
+
+    if (wu_jian_attack == WU_JIAN_ATTACK_LUNGE)
+        dam = div_rand_round(dam * 12, 10);
+
+    if (wu_jian_attack == WU_JIAN_ATTACK_WHIRLWIND)
+        dam = div_rand_round(dam * 8, 10);
+
+    return dam;
+}
+
 void melee_attack::chaos_affect_actor(actor *victim)
 {
     ASSERT(victim); // XXX: change to actor &victim
@@ -3394,22 +3406,30 @@ bool melee_attack::_extra_aux_attack(unarmed_attack_type atk)
         return false;
     }
 
+    if (wu_jian_attack != WU_JIAN_ATTACK_NONE
+        && !x_chance_in_y(1, wu_jian_number_of_targets))
+    {
+       // Reduces aux chance proportionally to number of
+       // enemies attacked with a martial attack
+       return false;
+    }
+
     switch (atk)
     {
     case UNAT_CONSTRICT:
-        return player_mutation_level(MUT_CONSTRICTING_TAIL)
+        return you.get_mutation_level(MUT_CONSTRICTING_TAIL)
                 || you.species == SP_OCTOPODE && you.has_usable_tentacle();
 
     case UNAT_KICK:
         return you.has_usable_hooves()
                || you.has_usable_talons()
-               || player_mutation_level(MUT_TENTACLE_SPIKE);
+               || you.get_mutation_level(MUT_TENTACLE_SPIKE);
 
     case UNAT_PECK:
-        return player_mutation_level(MUT_BEAK) && !one_chance_in(3);
+        return you.get_mutation_level(MUT_BEAK) && !one_chance_in(3);
 
     case UNAT_HEADBUTT:
-        return player_mutation_level(MUT_HORNS) && !one_chance_in(3);
+        return you.get_mutation_level(MUT_HORNS) && !one_chance_in(3);
 
     case UNAT_TAILSLAP:
         return you.has_usable_tail() && coinflip();
@@ -3421,9 +3441,9 @@ bool melee_attack::_extra_aux_attack(unarmed_attack_type atk)
         return you.has_usable_tentacles() && !one_chance_in(3);
 
     case UNAT_BITE:
-        return player_mutation_level(MUT_ANTIMAGIC_BITE)
+        return you.get_mutation_level(MUT_ANTIMAGIC_BITE)
                || (you.has_usable_fangs()
-                   || player_mutation_level(MUT_ACIDIC_BITE))
+                   || you.get_mutation_level(MUT_ACIDIC_BITE))
                    && x_chance_in_y(2, 5);
 
     case UNAT_PUNCH:
@@ -3450,11 +3470,17 @@ int melee_attack::calc_your_to_hit_unarmed(int uattack)
 
     your_to_hit -= 5 * you.inaccuracy();
 
-    if (player_mutation_level(MUT_EYEBALLS))
-        your_to_hit += 2 * player_mutation_level(MUT_EYEBALLS) + 1;
+    if (you.get_mutation_level(MUT_EYEBALLS))
+        your_to_hit += 2 * you.get_mutation_level(MUT_EYEBALLS) + 1;
 
-    if (you.species != SP_VAMPIRE && you.hunger_state <= HS_STARVING)
+    if (apply_starvation_penalties())
         your_to_hit -= 3;
+
+    if (you.duration[DUR_VERTIGO])
+        your_to_hit -= 5;
+
+    if (you.confused())
+        your_to_hit -= 5;
 
     your_to_hit += slaying_bonus();
 

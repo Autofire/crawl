@@ -7,6 +7,8 @@
 
 #include "game-options.h"
 #include "options.h"
+#include "misc.h"
+#include "tiles-build-specific.h"
 
 static unsigned _curses_attribute(const string &field, string &error)
 {
@@ -39,43 +41,45 @@ static unsigned _curses_attribute(const string &field, string &error)
     return CHATTR_NORMAL;
 }
 
-static bool _read_bool(const string &field, string &error)
+/**
+ * Read a maybe bool field. Accepts anything for the third value.
+ */
+maybe_bool read_maybe_bool(const string &field)
 {
+    // TODO: check for "maybe" explicitly or something?
     if (field == "true" || field == "1" || field == "yes")
-        return true;
+        return MB_TRUE;
 
     if (field == "false" || field == "0" || field == "no")
-        return false;
+        return MB_FALSE;
 
-    error = make_stringf("Bad boolean: %s (should be true or false)",
-                         field.c_str());
-    return false;
+    return MB_MAYBE;
 }
 
 bool read_bool(const string &field, bool def_value)
 {
-    string error;
-    const bool result = _read_bool(field, error);
-    if (error.empty())
-        return result;
+    const maybe_bool result = read_maybe_bool(field);
+    if (result != MB_MAYBE)
+        return tobool(result, false);
 
-    Options.report_error("%s", error.c_str());
+    Options.report_error("Bad boolean: %s (should be true or false)", field.c_str());
     return def_value;
 }
+
 
 void BoolGameOption::reset() const { value = default_value; }
 
 string BoolGameOption::loadFromString(string field, rc_line_type) const
 {
     string error;
-    const bool result = _read_bool(field, error);
-    if (!error.empty())
+    const maybe_bool result = read_maybe_bool(field);
+    if (result == MB_MAYBE)
     {
         return make_stringf("Bad %s value: %s (should be true or false)",
                             name().c_str(), field.c_str());
     }
 
-    value = result;
+    value = tobool(result, false);
     return "";
 }
 
@@ -105,6 +109,11 @@ string CursesGameOption::loadFromString(string field, rc_line_type) const
 }
 
 #ifdef USE_TILE
+TileColGameOption::TileColGameOption(VColour &val, std::set<std::string> _names,
+                    string _default)
+        : GameOption(_names), value(val),
+          default_value(str_to_tile_colour(_default)) { }
+
 void TileColGameOption::reset() const { value = default_value; }
 
 string TileColGameOption::loadFromString(string field, rc_line_type) const

@@ -13,9 +13,11 @@
 #include "prompt.h"
 #include "spl-cast.h"
 #include "spl-util.h"
+#include "tile-inventory-flags.h"
 #include "tiledef-icons.h"
 #include "tiledef-main.h"
 #include "tilepick.h"
+#include "tiles-build-specific.h"
 #include "viewgeom.h"
 
 SpellRegion::SpellRegion(const TileRegionInit &init) : GridRegion(init)

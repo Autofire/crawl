@@ -322,18 +322,16 @@ static void _give_starting_food()
         return;
 
     object_class_type base_type = OBJ_FOOD;
-    int sub_type = FOOD_BREAD_RATION;
+    int sub_type = FOOD_RATION;
     int quantity = 1;
     if (you.species == SP_VAMPIRE)
     {
         base_type = OBJ_POTIONS;
         sub_type  = POT_BLOOD;
     }
-    else if (player_mutation_level(MUT_CARNIVOROUS))
-        sub_type = FOOD_MEAT_RATION;
 
     // Give another one for hungry species.
-    if (player_mutation_level(MUT_FAST_METABOLISM))
+    if (you.get_mutation_level(MUT_FAST_METABOLISM))
         quantity = 2;
 
     newgame_make_item(base_type, sub_type, quantity);
@@ -364,10 +362,6 @@ static void _setup_tutorial_miscs()
 static void _give_basic_knowledge()
 {
     identify_inventory();
-
-    for (const item_def& i : you.inv)
-        if (i.base_type == OBJ_BOOKS)
-            mark_had_book(i);
 
     // Recognisable by appearance.
     you.type_ids[OBJ_POTIONS][POT_BLOOD] = true;
@@ -474,7 +468,7 @@ static void _setup_generic(const newgame_def& ng)
     species_stat_init(you.species);     // must be down here {dlb}
 
     // Before we get into the inventory init, set light radius based
-    // on species vision. Currently, all species see out to 8 squares.
+    // on species vision.
     update_vision_range();
 
     job_stat_init(you.char_class);
@@ -507,6 +501,9 @@ static void _setup_generic(const newgame_def& ng)
         _setup_tutorial_miscs();
 
     _give_basic_knowledge();
+
+    // Must be after _give_basic_knowledge
+    add_held_books_to_library();
 
     initialise_item_descriptions();
 

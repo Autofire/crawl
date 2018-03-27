@@ -194,6 +194,11 @@ cloud_neg0 CLOUD_NEG
 cloud_neg1
 cloud_neg2
 
+cloud_gold_dust0 CLOUD_GOLD_DUST
+cloud_gold_dust1
+cloud_gold_dust2
+cloud_gold_dust3
+
 %sdir mon
 fungi_plants/ballistomycete_spore SPORE_OVERLAY
 
@@ -227,3 +232,5 @@ error ERROR
 %rim 1
 todo TODO
 %rim 0
+
+item/misc/misc_card MISC_CARD

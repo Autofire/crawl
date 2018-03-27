@@ -15,7 +15,9 @@
 #include "dgn-overview.h"
 #include "dungeon.h"
 #include "item-prop.h"
+#include "level-state-type.h"
 #include "libutil.h"
+#include "map-knowledge.h"
 #include "mon-place.h"
 #include "options.h"
 #include "state.h"
@@ -24,6 +26,7 @@
 #ifdef USE_TILE
  #include "tileview.h"
 #endif
+#include "tiles-build-specific.h"
 #include "traps.h"
 #include "travel.h"
 #include "viewgeom.h"
@@ -139,11 +142,6 @@ static void _update_feat_at(const coord_def &gp)
     if (disjunction_haloed(gp))
         env.map_knowledge(gp).flags |= MAP_DISJUNCT;
 
-#if TAG_MAJOR_VERSION == 34
-    if (heated(gp))
-        env.map_knowledge(gp).flags |= MAP_HOT;
-#endif
-
     if (is_sanctuary(gp))
     {
         if (testbits(env.pgrid(gp), FPROP_SANCTUARY_1))
@@ -158,7 +156,7 @@ static void _update_feat_at(const coord_def &gp)
     if (you.get_fearmonger(gp))
         env.map_knowledge(gp).flags |= MAP_WITHHELD;
 
-    if (you.made_nervous_by(gp))
+    if (you.is_nervous() && you.see_cell(gp) && !monster_at(gp))
         env.map_knowledge(gp).flags |= MAP_WITHHELD;
 
     if ((feat_is_stone_stair(feat)
@@ -572,4 +570,9 @@ void show_update_emphasis()
     for (const stair_info &stair : stairs)
         if (stair.destination.is_valid())
             env.map_knowledge(stair.position).flags &= ~MAP_EMPHASIZE;
+
+    vector<transporter_info> transporters = level_info.get_transporters();
+    for (const transporter_info &transporter: transporters)
+        if (!transporter.destination.origin())
+            env.map_knowledge(transporter.position).flags &= ~MAP_EMPHASIZE;
 }

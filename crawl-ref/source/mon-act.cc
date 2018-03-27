@@ -31,7 +31,9 @@
 #include "hints.h"
 #include "item-name.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
+#include "level-state-type.h"
 #include "libutil.h"
 #include "losglobal.h"
 #include "los.h"
@@ -71,9 +73,6 @@
 
 static bool _handle_pickup(monster* mons);
 static void _mons_in_cloud(monster& mons);
-#if TAG_MAJOR_VERSION == 34
-static void _heated_area(monster& mons);
-#endif
 static bool _monster_move(monster* mons);
 
 // [dshaligram] Doesn't need to be extern.
@@ -1106,17 +1105,22 @@ static void _mons_fire_wand(monster& mons, item_def &wand, bolt &beem,
 
         set_ident_type(OBJ_WANDS, wand_type, true);
         if (!mons.props["wand_known"].get_bool())
-        {
             mprf("It is %s.", wand.name(DESC_A).c_str());
-            mons.props["wand_known"] = true;
+
+        if (wand.charges <= 0)
+        {
+            mons.props["wand_known"] = false;
+            mprf("The now-empty wand crumbles to dust.");
         }
-
-        // Increment zap count.
-        if (wand.used_count >= 0)
-            wand.used_count++;
-
-        mons.flags |= MF_SEEN_RANGED;
+        else
+        {
+            mons.props["wand_known"] = true;
+            mons.flags |= MF_SEEN_RANGED;
+        }
     }
+
+    if (wand.charges <= 0)
+        dec_mitm_item_quantity(wand.index(), 1);
 
     mons.lose_energy(EUT_ITEM);
 }
@@ -1142,20 +1146,7 @@ static bool _handle_wand(monster& mons)
     }
 
     if (wand->charges <= 0)
-    {
-        if (wand->used_count != ZAPCOUNT_EMPTY)
-        {
-            if (simple_monster_message(mons, " zaps a wand."))
-                canned_msg(MSG_NOTHING_HAPPENS);
-            else if (!silenced(you.pos()))
-                mprf(MSGCH_SOUND, "You hear a zap.");
-            wand->used_count = ZAPCOUNT_EMPTY;
-            mons.lose_energy(EUT_ITEM);
-            return true;
-        }
-        else
-            return false;
-    }
+        return false;
 
     bool niceWand    = false;
     bool zap         = false;
@@ -1431,7 +1422,7 @@ static void _pre_monster_move(monster& mons)
         if (awakener && !awakener->can_see(mons))
         {
             simple_monster_message(mons, " falls limply to the ground.");
-            monster_die(&mons, KILL_RESET, NON_MONSTER);
+            monster_die(mons, KILL_RESET, NON_MONSTER);
             return;
         }
     }
@@ -1441,7 +1432,7 @@ static void _pre_monster_move(monster& mons)
     if (mons.type == MONS_BALL_LIGHTNING && mons.summoner == MID_PLAYER
         && !cell_see_cell(you.pos(), mons.pos(), LOS_SOLID))
     {
-        monster_die(&mons, KILL_RESET, NON_MONSTER);
+        monster_die(mons, KILL_RESET, NON_MONSTER);
         return;
     }
 
@@ -1493,9 +1484,6 @@ static void _pre_monster_move(monster& mons)
         // Update constriction durations
         mons.accum_has_constricted();
 
-#if TAG_MAJOR_VERSION == 34
-        _heated_area(mons);
-#endif
         if (mons.type == MONS_NO_MONSTER)
             return;
     }
@@ -1639,9 +1627,6 @@ void handle_monster_move(monster* mons)
     mons->shield_blocks = 0;
 
     _mons_in_cloud(*mons);
-#if TAG_MAJOR_VERSION == 34
-    _heated_area(*mons);
-#endif
     if (!mons->alive())
         return;
 
@@ -1984,7 +1969,7 @@ void handle_monster_move(monster* mons)
             if (outward)
                 outward->props["inwards"].get_int() = mons->mid;
 
-            monster_die(targ, KILL_MISC, NON_MONSTER, true);
+            monster_die(*targ, KILL_MISC, NON_MONSTER, true);
             targ = nullptr;
         }
 
@@ -2275,7 +2260,7 @@ static void _post_monster_move(monster* mons)
     }
 
     if (mons->type == MONS_GUARDIAN_GOLEM)
-        guardian_golem_bond(mons);
+        guardian_golem_bond(*mons);
 
     // A rakshasa that has regained full health dismisses its emergency clones
     // (if they're somehow still alive) and regains the ability to summon new ones.
@@ -2306,7 +2291,7 @@ static void _post_monster_move(monster* mons)
     }
 
     if (mons->type != MONS_NO_MONSTER && mons->hit_points < 1)
-        monster_die(mons, KILL_MISC, NON_MONSTER);
+        monster_die(*mons, KILL_MISC, NON_MONSTER);
 }
 
 priority_queue<pair<monster *, int>,
@@ -2340,7 +2325,7 @@ static void _clear_monster_flags()
 **/
 static void _update_monster_attitude(monster *mon)
 {
-    if (player_mutation_level(MUT_NO_LOVE)
+    if (you.get_mutation_level(MUT_NO_LOVE)
         && !mons_is_conjured(mon->type))
     {
         mon->attitude = ATT_HOSTILE;
@@ -2821,7 +2806,7 @@ bool mon_can_move_to_pos(const monster* mons, const coord_def& delta,
     const habitat_type habitat = mons_primary_habitat(*mons);
 
     // No monster may enter the open sea.
-    if (target_grid == DNGN_OPEN_SEA || target_grid == DNGN_LAVA_SEA)
+    if (feat_is_endless(target_grid))
         return false;
 
     if (mons_avoids_cloud(mons, targ))
@@ -2836,6 +2821,7 @@ bool mon_can_move_to_pos(const monster* mons, const coord_def& delta,
            && (mons_class_flag(mons->type, M_BURROWS) || digs)
         || mons->type == MONS_SPATIAL_MAELSTROM
            && feat_is_solid(target_grid) && !feat_is_permarock(target_grid)
+           && !feat_is_critical(target_grid)
         || feat_is_tree(target_grid) && mons_flattens_trees(*mons)
         || target_grid == DNGN_GRATE && digs)
     {
@@ -2858,7 +2844,7 @@ bool mon_can_move_to_pos(const monster* mons, const coord_def& delta,
     if (mons->type == MONS_WANDERING_MUSHROOM
         || mons->type == MONS_DEATHCAP
         || (mons->type == MONS_LURKING_HORROR
-            && mons->foe_distance() > random2(LOS_RADIUS + 1)))
+            && mons->foe_distance() > random2(LOS_DEFAULT_RANGE + 1)))
     {
         if (!mons->wont_attack() && is_sanctuary(mons->pos()))
             return true;
@@ -3338,7 +3324,7 @@ static bool _do_move_monster(monster& mons, const coord_def& delta)
 
     // Let go of all constrictees; only stop *being* constricted if we are now
     // too far away (done in move_to_pos above).
-    mons.stop_constricting_all(true);
+    mons.stop_directly_constricting_all(false);
 
     mons.check_redraw(mons.pos() - delta);
     mons.apply_location_effects(mons.pos() - delta);
@@ -3695,55 +3681,3 @@ static void _mons_in_cloud(monster& mons)
 
     actor_apply_cloud(&mons);
 }
-
-#if TAG_MAJOR_VERSION == 34
-static void _heated_area(monster& mons)
-{
-    if (!heated(mons.pos()))
-        return;
-
-    if (mons.is_fiery())
-        return;
-
-    // HACK: Currently this prevents even auras not caused by lava orcs...
-    if (you_worship(GOD_BEOGH) && mons.friendly() && mons.god == GOD_BEOGH)
-        return;
-
-    const int base_damage = random2(11);
-
-    // Timescale, like with clouds:
-    const int speed = mons.speed > 0 ? mons.speed : 10;
-    const int timescaled = max(0, base_damage) * 10 / speed;
-
-    // rF protects:
-    const int adjusted_damage = resist_adjust_damage(&mons,
-                                BEAM_FIRE, timescaled);
-    // So does AC:
-    const int final_damage = max(0, adjusted_damage
-                                 - random2(mons.armour_class()));
-
-    if (final_damage > 0)
-    {
-        if (mons.observable())
-        {
-            mprf("%s is %s by your radiant heat.",
-                 mons.name(DESC_THE).c_str(),
-                 (final_damage) > 10 ? "blasted" : "burned");
-        }
-
-        behaviour_event(&mons, ME_DISTURB, 0, mons.pos());
-
-#ifdef DEBUG_DIAGNOSTICS
-        mprf(MSGCH_DIAGNOSTICS, "%s %s %d damage from heat.",
-             mons.name(DESC_THE).c_str(),
-             mons.conj_verb("take").c_str(),
-             final_damage);
-#endif
-
-        mons.hurt(&you, final_damage, BEAM_MISSILE);
-
-        if (mons.alive() && mons.observable())
-            print_wounds(mons);
-    }
-}
-#endif

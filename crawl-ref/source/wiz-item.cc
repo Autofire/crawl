@@ -21,6 +21,7 @@
 #include "god-passive.h"
 #include "invent.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "jobs.h"
 #include "libutil.h"
@@ -31,6 +32,7 @@
 #include "misc.h"
 #include "mon-death.h"
 #include "options.h"
+#include "orb-type.h"
 #include "output.h"
 #include "player-equip.h"
 #include "prompt.h"
@@ -63,7 +65,6 @@ static void _make_all_books()
 
         item_def book(mitm[thing]);
 
-        mark_had_book(book);
         set_ident_flags(book, ISFLAG_KNOW_TYPE);
         set_ident_flags(book, ISFLAG_IDENT_MASK);
 
@@ -532,7 +533,7 @@ void wizard_value_item()
 
 void wizard_create_all_artefacts()
 {
-    you.octopus_king_rings = 0;
+    you.octopus_king_rings = 0x00;
     int octorings = 8;
 
     // Create all unrandarts.
@@ -1025,14 +1026,12 @@ static void _debug_acquirement_stats(FILE *ostat)
             if (spell_rarity(spell) == -1)
                 continue;
 
-            const bool seen = you.seen_spell[spell];
+            const bool seen = you.spell_library[spell];
 
             const spschools_type disciplines = get_spell_disciplines(spell);
             for (int d = 0; d <= SPTYP_LAST_EXPONENT; ++d)
             {
                 const auto disc = spschools_type::exponent(d);
-                if (disc & SPTYP_DIVINATION)
-                    continue;
 
                 if (disciplines & disc)
                 {
@@ -1045,8 +1044,6 @@ static void _debug_acquirement_stats(FILE *ostat)
         for (int d = 0; d <= SPTYP_LAST_EXPONENT; ++d)
         {
             const auto disc = spschools_type::exponent(d);
-            if (disc & SPTYP_DIVINATION)
-                continue;
 
             fprintf(ostat, "%-13s:  %2d/%2d spells unseen\n",
                     spelltype_long_name(disc),
@@ -1159,6 +1156,7 @@ static void _debug_acquirement_stats(FILE *ostat)
             "jumping",
 #endif
             "repulsion",
+            "cloud immunity",
         };
 
         const int non_art = acq_calls - num_arts;
@@ -1190,7 +1188,6 @@ static void _debug_acquirement_stats(FILE *ostat)
                 "transmutation",
                 "necromancy",
                 "summoning",
-                "divination",
                 "translocation",
                 "poison magic",
                 "earth magic",
@@ -1460,9 +1457,6 @@ static void _debug_rap_stats(FILE *ostat)
         "ARTP_SEE_INVISIBLE",
         "ARTP_INVISIBLE",
         "ARTP_FLY",
-#if TAG_MAJOR_VERSION > 34
-        "ARTP_FOG",
-#endif
         "ARTP_BLINK",
         "ARTP_BERSERK",
         "ARTP_NOISE",
@@ -1639,9 +1633,6 @@ void wizard_recharge_evokers()
             continue;
 
         evoker_debt(dummy.sub_type) = 0;
-
-        if (dummy.sub_type == MISC_LIGHTNING_ROD)
-            you.props["thunderbolt_charge"].get_int() = 0;
     }
     mpr("Evokers recharged.");
 }

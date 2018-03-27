@@ -1,5 +1,13 @@
-#ifndef ITEMPROP_ENUM_H
-#define ITEMPROP_ENUM_H
+#pragma once
+
+/* Don't change the order of any enums in this file unless you are breaking
+ * save compatibility. See ../docs/develop/save_compatibility.txt for
+ * more details, including how to schedule both the current and future
+ * enum orders.
+ *
+ * If you do break compatibility and change the order, be sure to change
+ * rltiles/dc-item.txt to match.
+ */
 
 enum armour_type
 {
@@ -162,6 +170,7 @@ enum brand_type // item_def.special
     SPWPN_DEBUG_RANDART,
     NUM_SPECIAL_WEAPONS,
 };
+COMPILE_CHECK(NUM_SPECIAL_WEAPONS <= SP_UNKNOWN_BRAND);
 
 enum corpse_type
 {
@@ -218,9 +227,7 @@ enum jewellery_type
     AMU_RAGE = 35,
     AMU_FIRST_AMULET = AMU_RAGE,
     AMU_HARM,
-#if TAG_MAJOR_VERSION == 34
-    AMU_DISMISSAL,
-#endif
+    AMU_ACROBAT,
     AMU_MANA_REGENERATION,
     AMU_THE_GOURMAND,
 #if TAG_MAJOR_VERSION == 34
@@ -237,12 +244,12 @@ enum jewellery_type
     NUM_JEWELLERY
 };
 
-enum launch_retval
+enum class launch_retval
 {
-    LRET_BUGGY = -1, // could be 0 maybe? TODO: test
-    LRET_FUMBLED,
-    LRET_LAUNCHED,
-    LRET_THROWN,
+    BUGGY = -1, // could be 0 maybe? TODO: test
+    FUMBLED,
+    LAUNCHED,
+    THROWN,
 };
 
 enum misc_item_type
@@ -411,8 +418,8 @@ enum scroll_type
     SCR_ENCHANT_WEAPON_II,
 #endif
     SCR_BRAND_WEAPON,
-    SCR_RECHARGING,
 #if TAG_MAJOR_VERSION == 34
+    SCR_RECHARGING,
     SCR_ENCHANT_WEAPON_III,
 #endif
     SCR_HOLY_WORD,
@@ -457,9 +464,12 @@ enum special_armour_type
     SPARM_JUMPING,
 #endif
     SPARM_REPULSION,
+    SPARM_CLOUD_IMMUNE,
     NUM_REAL_SPECIAL_ARMOURS,
     NUM_SPECIAL_ARMOURS,
 };
+// We have space for 32 brands in the bitfield.
+COMPILE_CHECK(NUM_SPECIAL_ARMOURS <= SP_UNKNOWN_BRAND);
 
 // Be sure to update _str_to_ego to match.
 enum special_missile_type // to separate from weapons in general {dlb}
@@ -558,9 +568,6 @@ enum weapon_type
     WPN_QUICK_BLADE,
     WPN_SHORT_SWORD,
     WPN_RAPIER,
-#if TAG_MAJOR_VERSION > 34
-    WPN_CUTLASS,
-#endif
 
     WPN_FALCHION,
     WPN_LONG_SWORD,
@@ -706,17 +713,15 @@ enum wand_type
 #if TAG_MAJOR_VERSION == 34
     WAND_FIRE_REMOVED,
     WAND_COLD_REMOVED,
-#endif
-    WAND_CONFUSION,
-#if TAG_MAJOR_VERSION == 34
+    WAND_CONFUSION_REMOVED,
     WAND_INVISIBILITY_REMOVED,
 #endif
     WAND_DIGGING,
     WAND_ICEBLAST,
 #if TAG_MAJOR_VERSION == 34
     WAND_TELEPORTATION_REMOVED,
+    WAND_LIGHTNING_REMOVED,
 #endif
-    WAND_LIGHTNING,
     WAND_POLYMORPH,
     WAND_ENSLAVEMENT,
     WAND_ACID,
@@ -727,28 +732,19 @@ enum wand_type
     NUM_WANDS
 };
 
-enum zap_count_type
-{
-    ZAPCOUNT_EMPTY       = -1,
-    ZAPCOUNT_UNKNOWN     = -2,
-    ZAPCOUNT_RECHARGED   = -3,
-};
-
 enum food_type
 {
-    FOOD_MEAT_RATION,
-    FOOD_BREAD_RATION,
+    FOOD_RATION,
 #if TAG_MAJOR_VERSION == 34
+    FOOD_BREAD_RATION,
     FOOD_PEAR,
     FOOD_APPLE,
     FOOD_CHOKO,
 #endif
-    FOOD_ROYAL_JELLY,
 #if TAG_MAJOR_VERSION == 34
-    FOOD_UNUSED, // was: royal jelly
-#endif
+    FOOD_ROYAL_JELLY,   // was: royal jelly
+    FOOD_UNUSED, // was: royal jelly and/or pizza
     FOOD_FRUIT,  // was: snozzcumber
-#if TAG_MAJOR_VERSION == 34
     FOOD_PIZZA,
     FOOD_APRICOT,
     FOOD_ORANGE,
@@ -769,5 +765,3 @@ enum food_type
 #endif
     NUM_FOODS
 };
-
-#endif

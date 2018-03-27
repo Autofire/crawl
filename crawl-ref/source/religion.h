@@ -3,8 +3,7 @@
  * @brief Misc religion related functions.
 **/
 
-#ifndef RELIGION_H
-#define RELIGION_H
+#pragma once
 
 #include "enum.h"
 #include "mgen-data.h"
@@ -42,6 +41,7 @@ god_type random_god();
 int piety_breakpoint(int i);
 string god_name(god_type which_god, bool long_name = false);
 string god_name_jiyva(bool second_name = false);
+string wu_jian_random_sifu_name();
 god_type str_to_god(const string &name, bool exact = true);
 
 int initial_wrath_penance_for(god_type god);
@@ -103,6 +103,7 @@ bool god_likes_spell(spell_type spell, god_type god);
 bool god_hates_spellcasting(god_type god);
 bool god_hates_spell(spell_type spell, god_type god, bool fake_spell = false);
 bool god_loathes_spell(spell_type spell, god_type god);
+string god_spell_warn_string(spell_type spell, god_type god);
 bool god_hates_ability(ability_type ability, god_type god);
 lifesaving_chance elyvilon_lifesaving();
 bool god_protects_from_harm();
@@ -194,5 +195,5 @@ struct god_power
 
 void set_god_ability_slots();
 vector<god_power> get_god_powers(god_type god);
-
-#endif
+const god_power* god_power_from_ability(ability_type abil);
+bool god_power_usable(const god_power& power, bool ignore_piety=false, bool ignore_penance=false);

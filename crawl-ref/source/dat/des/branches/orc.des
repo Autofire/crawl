@@ -25,7 +25,7 @@ NAME: david_orc_1_choice
 TAGS: orc_entry
 MONS: orc, warg / orc priest / orc warrior, orc warrior / orc
 ITEM: % / scroll of teleportation / scroll of remove curse / scroll of identify
-ITEM: % / w:2 * / scroll of blinking / scroll of recharging / scroll of fear
+ITEM: % / w:2 * / scroll of blinking / scroll of fear
 SHUFFLE: %1
 ORIENT: float
 KFEAT: O = enter_orcish_mines
@@ -189,12 +189,12 @@ ORIENT:  float
 MONS:    orc, orc priest / orc wizard
 MONS:    w:50 orc warrior / ogre, swamp drake
 # The drake's name is Bobby. Since you did ask.
-KITEM:   1 = meat ration w:5 / nothing / animal skin / \
+KITEM:   1 = ration w:5 / nothing / animal skin / \
              potion of degeneration w:20 / potion of haste w:2 / \
              potion of might w:2
 KFEAT:   1 = 1
-ITEM:    club, potion of degeneration ident:type, royal jelly
-ITEM:    meat ration w:2 / nothing, potion of degeneration ident:type
+ITEM:    club, potion of degeneration ident:type, ration w:5
+ITEM:    ration w:2 / nothing, potion of degeneration ident:type
 SHUFFLE: defO
 KFEAT:   O = enter_orcish_mines
 MAP
@@ -1344,6 +1344,54 @@ xxxxX..cc..C..XCx
    xxxxXXXxxx..C
      xxxxxxxC..@
          xxxxC@
+ENDMAP
+
+NAME: cheibrodos_orc_arena
+TAGS: no_item_gen no_monster_gen
+DEPTH: Orc
+ORIENT: float
+MONS: orc / w:5 orc warrior
+MONS: orc knight ; great mace . morningstar | chain mail . plate armour \
+      / w:3 orc warlord ; great mace . morningstar | chain mail . plate armour
+KFEAT: - = iron_grate
+KFEAT: A = floor
+KPROP: A = bloody
+NSUBST: ' = 5:1 / 4=1., " = 5:1 / 4=1., _ = 3:A / 4=A.
+MAP
+  xxxxxxxxxxx
+ xxxx$$$$$xxxx
+xx..+$$$$$+..xx
+x'''x--+--x"""x
+x''xx_____xx""x
+x''m_______m""x
+x''m_2___2_m""x
+x''m_______m""x
+x''xx_____xx""x
+x'''x-----x"""x
+xx...........xx
+ xx.........xx
+  xxxG...Gxxx
+     .@@@.
+ENDMAP
+
+NAME: cheibrodos_orc_guarddog
+TAGS: no_monster_gen
+DEPTH: Orc
+ORIENT: float
+MONS: warg
+NSUBST: 1 = 3:1 / 4=1..
+MAP
+xxx..@..xxx
+x1...1...1x
+x.........x
+...IxxxI...
+...x$$$x...
+@1.x$$$+..@
+...x$$$x...
+...IxxxI...
+x.........x
+x1...1...1x
+xxx..@..xxx
 ENDMAP
 
 ############################################################################

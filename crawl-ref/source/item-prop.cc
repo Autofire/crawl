@@ -20,16 +20,20 @@
 #include "god-passive.h"
 #include "invent.h"
 #include "items.h"
+#include "item-status-flag-type.h"
 #include "item-use.h"
 #include "libutil.h" // map_find
 #include "message.h"
 #include "misc.h"
 #include "notes.h"
 #include "options.h"
+#include "orb-type.h"
+#include "potion-type.h"
 #include "random.h"
 #include "religion.h"
 #include "shopping.h"
 #include "skills.h"
+#include "spl-wpnench.h"
 #include "stringutil.h"
 #include "terrain.h"
 #include "xom.h"
@@ -73,7 +77,7 @@ struct armour_def
     { ARM_ ## id ## _DRAGON_ARMOUR, name " dragon scales",  ac, evp, prc,   \
       EQ_BODY_ARMOUR, SIZE_LITTLE, SIZE_GIANT, false, res, 25 }
 #else
-#define DRAGON_ARMOUR(id, name, ac, evp, prc, res)
+#define DRAGON_ARMOUR(id, name, ac, evp, prc, res)                          \
     { ARM_ ## id ## _DRAGON_ARMOUR, name " dragon scales",  ac, evp, prc,   \
       EQ_BODY_ARMOUR, SIZE_LITTLE, SIZE_GIANT, false, res, 25 }
 #endif
@@ -108,29 +112,6 @@ static const armour_def Armour_prop[] =
 #endif
     { ARM_TROLL_LEATHER_ARMOUR, "troll leather armour",  4,  -40,    150,
        EQ_BODY_ARMOUR, SIZE_LITTLE, SIZE_GIANT, false, ARMF_REGENERATION, 50 },
-
-    DRAGON_ARMOUR(STEAM,       "steam",                   5,   0,   400,
-        ARMF_RES_STEAM),
-    DRAGON_ARMOUR(ACID,        "acid",                    6,  -50,  400,
-        ARMF_RES_CORR),
-    DRAGON_ARMOUR(QUICKSILVER, "quicksilver",             9,  -70,  600,
-        ARMF_RES_MAGIC),
-    DRAGON_ARMOUR(SWAMP,       "swamp",                   7,  -70,  500,
-        ARMF_RES_POISON),
-    DRAGON_ARMOUR(FIRE,        "fire",                    8, -110,  600,
-        ard(ARMF_RES_FIRE, 2) | ARMF_VUL_COLD),
-    DRAGON_ARMOUR(ICE,         "ice",                     9, -110,  600,
-        ard(ARMF_RES_COLD, 2) | ARMF_VUL_FIRE),
-    DRAGON_ARMOUR(PEARL,       "pearl",                  10, -110, 1000,
-        ARMF_RES_NEG),
-    DRAGON_ARMOUR(STORM,       "storm",                  10, -150,  800,
-        ARMF_RES_ELEC),
-    DRAGON_ARMOUR(SHADOW,      "shadow",                 10, -150,  800,
-        ard(ARMF_STEALTH, 4)),
-    DRAGON_ARMOUR(GOLD,        "gold",                   12, -230,  800,
-        ARMF_RES_FIRE | ARMF_RES_COLD | ARMF_RES_POISON),
-
-#undef DRAGON_HIDE
 
     { ARM_CLOAK,                "cloak",                  1,   0,   45,
         EQ_CLOAK,       SIZE_LITTLE, SIZE_BIG, true },
@@ -171,6 +152,30 @@ static const armour_def Armour_prop[] =
         EQ_SHIELD,      SIZE_SMALL,  SIZE_BIG, true    },
     { ARM_LARGE_SHIELD,         "large shield",          13,  -50,  45,
         EQ_SHIELD,      SIZE_MEDIUM, SIZE_GIANT, true  },
+
+    // Following all ARM_ entries for the benefit of util/gather_items
+    DRAGON_ARMOUR(STEAM,       "steam",                   5,   0,   400,
+        ARMF_RES_STEAM),
+    DRAGON_ARMOUR(ACID,        "acid",                    6,  -50,  400,
+        ARMF_RES_CORR),
+    DRAGON_ARMOUR(QUICKSILVER, "quicksilver",             9,  -70,  600,
+        ARMF_RES_MAGIC),
+    DRAGON_ARMOUR(SWAMP,       "swamp",                   7,  -70,  500,
+        ARMF_RES_POISON),
+    DRAGON_ARMOUR(FIRE,        "fire",                    8, -110,  600,
+        ard(ARMF_RES_FIRE, 2) | ARMF_VUL_COLD),
+    DRAGON_ARMOUR(ICE,         "ice",                     9, -110,  600,
+        ard(ARMF_RES_COLD, 2) | ARMF_VUL_FIRE),
+    DRAGON_ARMOUR(PEARL,       "pearl",                  10, -110, 1000,
+        ARMF_RES_NEG),
+    DRAGON_ARMOUR(STORM,       "storm",                  10, -150,  800,
+        ARMF_RES_ELEC),
+    DRAGON_ARMOUR(SHADOW,      "shadow",                 10, -150,  800,
+        ard(ARMF_STEALTH, 4)),
+    DRAGON_ARMOUR(GOLD,        "gold",                   12, -230,  800,
+        ARMF_RES_FIRE | ARMF_RES_COLD | ARMF_RES_POISON),
+
+#undef DRAGON_ARMOUR
 };
 
 typedef pair<brand_type, int> brand_weight_tuple;
@@ -436,7 +441,7 @@ static const weapon_def Weapon_prop[] =
     { WPN_GIANT_CLUB,        "giant club",         20, -6, 16,
         SK_MACES_FLAILS, SIZE_LARGE, NUM_SIZE_LEVELS, MI_NONE,
         DAMV_CRUSHING, 1, 10, 17, {} },
-    { WPN_GIANT_SPIKED_CLUB, "giant spiked club",  22, -7, 19,
+    { WPN_GIANT_SPIKED_CLUB, "giant spiked club",  22, -7, 18,
         SK_MACES_FLAILS, SIZE_LARGE, NUM_SIZE_LEVELS, MI_NONE,
         DAMV_CRUSHING | DAM_PIERCE, 1, 10, 19, {} },
 
@@ -467,9 +472,11 @@ static const weapon_def Weapon_prop[] =
     { WPN_RAPIER,           "rapier",               8,  4, 12,
         SK_SHORT_BLADES, SIZE_LITTLE, SIZE_LITTLE, MI_NONE,
         DAMV_PIERCING, 8, 10, 40, SBL_BRANDS },
+#if TAG_MAJOR_VERSION == 34
     { WPN_CUTLASS,          "cutlass",              8,  4, 12,
         SK_SHORT_BLADES, SIZE_LITTLE, SIZE_LITTLE, MI_NONE,
         DAMV_SLICING | DAM_PIERCE, 0, 0, 0, {}},
+#endif
 
 
     // Long Blades
@@ -664,44 +671,41 @@ struct food_def
 {
     int         id;
     const char *name;
-    int         value;
-    int         carn_mod;
-    int         herb_mod;
+    int         normal_nutr;
+    int         carn_nutr;
+    int         herb_nutr;
 };
 
 static int Food_index[NUM_FOODS];
 static const food_def Food_prop[] =
 {
-    { FOOD_MEAT_RATION,  "meat ration",  5000,   500, -1500 },
-    { FOOD_CHUNK,        "chunk",        1000,   100,  -500 },
-
-    { FOOD_BREAD_RATION, "bread ration", 4400, -1000,   500 },
-
-    { FOOD_FRUIT,        "fruit",         850,  -100,    50 },
-
-    { FOOD_ROYAL_JELLY,  "royal jelly",  2000,     0,     0 },
+    { FOOD_RATION,       "ration",       3400,  1900,  1900 },
+    { FOOD_CHUNK,        "chunk",        1000,  1300,     0 },
 
 #if TAG_MAJOR_VERSION == 34
-    // is_real_food assumes we list FOOD_UNUSED as the first removed
+    // is_real_food assumes we list FOOD_ROYAL_JELLY as the first removed
     // food here, after all the unremoved foods.
-    { FOOD_UNUSED,       "buggy",           0,     0,     0 },
-    { FOOD_AMBROSIA,     "buggy",           0,     0,     0 },
-    { FOOD_ORANGE,       "buggy",        1000,  -300,   300 },
-    { FOOD_BANANA,       "buggy",        1000,  -300,   300 },
-    { FOOD_LEMON,        "buggy",        1000,  -300,   300 },
-    { FOOD_PEAR,         "buggy",         700,  -200,   200 },
-    { FOOD_APPLE,        "buggy",         700,  -200,   200 },
-    { FOOD_APRICOT,      "buggy",         700,  -200,   200 },
-    { FOOD_CHOKO,        "buggy",         600,  -200,   200 },
-    { FOOD_RAMBUTAN,     "buggy",         600,  -200,   200 },
-    { FOOD_LYCHEE,       "buggy",         600,  -200,   200 },
-    { FOOD_STRAWBERRY,   "buggy",         200,   -50,    50 },
-    { FOOD_GRAPE,        "buggy",         100,   -20,    20 },
-    { FOOD_SULTANA,      "buggy",          70,   -20,    20 },
-    { FOOD_CHEESE,       "buggy",        1200,     0,     0 },
-    { FOOD_SAUSAGE,      "buggy",        1200,   150,  -400 },
-    { FOOD_BEEF_JERKY,   "buggy",        1500,   200,  -200 },
-    { FOOD_PIZZA,        "buggy",        1500,     0,     0 },
+    { FOOD_UNUSED,       "buggy pizza",     0,     0,     0 },
+    { FOOD_ROYAL_JELLY,  "buggy jelly",  2000,  2000,  2000 },
+    { FOOD_BREAD_RATION, "buggy ration", 4400,     0,  5900 },
+    { FOOD_FRUIT,        "buggy fruit",   850,     0,  1000 },
+    { FOOD_AMBROSIA,     "buggy fruit",     0,     0,     0 },
+    { FOOD_ORANGE,       "buggy fruit",  1000,  -300,   300 },
+    { FOOD_BANANA,       "buggy fruit",  1000,  -300,   300 },
+    { FOOD_LEMON,        "buggy fruit",  1000,  -300,   300 },
+    { FOOD_PEAR,         "buggy fruit",   700,  -200,   200 },
+    { FOOD_APPLE,        "buggy fruit",   700,  -200,   200 },
+    { FOOD_APRICOT,      "buggy fruit",   700,  -200,   200 },
+    { FOOD_CHOKO,        "buggy fruit",   600,  -200,   200 },
+    { FOOD_RAMBUTAN,     "buggy fruit",   600,  -200,   200 },
+    { FOOD_LYCHEE,       "buggy fruit",   600,  -200,   200 },
+    { FOOD_STRAWBERRY,   "buggy fruit",   200,   -50,    50 },
+    { FOOD_GRAPE,        "buggy fruit",   100,   -20,    20 },
+    { FOOD_SULTANA,      "buggy fruit",    70,   -20,    20 },
+    { FOOD_CHEESE,       "buggy fruit",  1200,     0,     0 },
+    { FOOD_SAUSAGE,      "buggy fruit",  1200,   150,  -400 },
+    { FOOD_BEEF_JERKY,   "buggy fruit",  1500,   200,  -200 },
+    { FOOD_PIZZA,        "buggy fruit",  1500,     0,     0 },
 #endif
 };
 
@@ -734,7 +738,6 @@ const set<pair<object_class_type, int> > removed_items =
 #if TAG_MAJOR_VERSION == 34
     { OBJ_JEWELLERY, AMU_CONTROLLED_FLIGHT },
     { OBJ_JEWELLERY, AMU_CONSERVATION },
-    { OBJ_JEWELLERY, AMU_DISMISSAL },
     { OBJ_JEWELLERY, RING_REGENERATION },
     { OBJ_JEWELLERY, RING_SUSTAIN_ATTRIBUTES },
     { OBJ_JEWELLERY, RING_TELEPORT_CONTROL },
@@ -770,6 +773,7 @@ const set<pair<object_class_type, int> > removed_items =
     { OBJ_RODS,      ROD_IRON },
     { OBJ_SCROLLS,   SCR_ENCHANT_WEAPON_II },
     { OBJ_SCROLLS,   SCR_ENCHANT_WEAPON_III },
+    { OBJ_SCROLLS,   SCR_RECHARGING},
     { OBJ_WANDS,     WAND_MAGIC_DARTS_REMOVED },
     { OBJ_WANDS,     WAND_FROST_REMOVED },
     { OBJ_WANDS,     WAND_FIRE_REMOVED },
@@ -779,9 +783,15 @@ const set<pair<object_class_type, int> > removed_items =
     { OBJ_WANDS,     WAND_HASTING_REMOVED },
     { OBJ_WANDS,     WAND_TELEPORTATION_REMOVED },
     { OBJ_WANDS,     WAND_SLOWING_REMOVED },
+    { OBJ_WANDS,     WAND_CONFUSION_REMOVED },
+    { OBJ_WANDS,     WAND_LIGHTNING_REMOVED },
     { OBJ_SCROLLS,   SCR_CURSE_WEAPON },
     { OBJ_SCROLLS,   SCR_CURSE_ARMOUR },
     { OBJ_SCROLLS,   SCR_CURSE_JEWELLERY },
+    { OBJ_FOOD,      FOOD_BREAD_RATION },
+    { OBJ_FOOD,      FOOD_ROYAL_JELLY },
+    { OBJ_FOOD,      FOOD_UNUSED },
+    { OBJ_FOOD,      FOOD_FRUIT },
 #endif
     // Outside the #if because we probably won't remove these.
     { OBJ_RUNES,     RUNE_ELF },
@@ -807,6 +817,19 @@ bool item_known_cursed(const item_def &item)
            && item_ident(item, ISFLAG_KNOW_CURSE) && item.cursed();
 }
 
+// If item is a new unrand, takes a note of it and returns true.
+// Otherwise, takes no action and returns false.
+static bool _maybe_note_found_unrand(const item_def &item)
+{
+    if (is_unrandom_artefact(item) && !(item.flags & ISFLAG_SEEN))
+    {
+        take_note(Note(NOTE_FOUND_UNRAND, 0, 0, item.name(DESC_THE),
+                       origin_desc(item)));
+        return true;
+    }
+    return false;
+}
+
 /**
  * Is the provided item cursable? Note: this function would leak
  * information about unidentified holy wrath weapons, which is alright
@@ -822,8 +845,12 @@ bool item_is_cursable(const item_def &item, bool ignore_holy_wrath)
         return false;
     if (item_known_cursed(item))
         return false;
-    if (!ignore_holy_wrath && item.base_type == OBJ_WEAPONS
-        && get_weapon_brand(item) == SPWPN_HOLY_WRATH)
+    if (!ignore_holy_wrath
+        && item.base_type == OBJ_WEAPONS
+        && (get_weapon_brand(item) == SPWPN_HOLY_WRATH
+            || you.duration[DUR_EXCRUCIATING_WOUNDS]
+               && item_is_equipped(item)
+               && you.props[ORIGINAL_BRAND_KEY].get_int() == SPWPN_HOLY_WRATH))
     {
         return false;
     }
@@ -888,7 +915,10 @@ void do_curse_item(item_def &item, bool quiet)
 
     // Holy wrath weapons cannot be cursed.
     if (item.base_type == OBJ_WEAPONS
-        && get_weapon_brand(item) == SPWPN_HOLY_WRATH)
+        && (get_weapon_brand(item) == SPWPN_HOLY_WRATH
+            || you.duration[DUR_EXCRUCIATING_WOUNDS]
+               && item_is_equipped(item)
+               && you.props[ORIGINAL_BRAND_KEY].get_int() == SPWPN_HOLY_WRATH))
     {
         if (!quiet)
         {
@@ -1073,9 +1103,12 @@ void set_ident_flags(item_def &item, iflags_t flags)
             && !get_ident_type(item)
             && is_interesting_item(item))
         {
-            // Make a note of it.
-            take_note(Note(NOTE_ID_ITEM, 0, 0, item.name(DESC_A),
-                           origin_desc(item)));
+            if (!_maybe_note_found_unrand(item))
+            {
+                // Make a note of this non-unrand item
+                take_note(Note(NOTE_ID_ITEM, 0, 0, item.name(DESC_A),
+                               origin_desc(item)));
+            }
 
             // Sometimes (e.g. shops) you can ID an item before you get it;
             // don't note twice in those cases.
@@ -1131,13 +1164,11 @@ static iflags_t _full_ident_mask(const item_def& item)
 #endif
     case OBJ_SCROLLS:
     case OBJ_POTIONS:
+    case OBJ_WANDS:
         flagset = ISFLAG_KNOW_TYPE;
         break;
     case OBJ_STAVES:
         flagset = ISFLAG_KNOW_TYPE | ISFLAG_KNOW_CURSE;
-        break;
-    case OBJ_WANDS:
-        flagset = (ISFLAG_KNOW_TYPE | ISFLAG_KNOW_PLUSES);
         break;
     case OBJ_JEWELLERY:
         flagset = (ISFLAG_KNOW_CURSE | ISFLAG_KNOW_TYPE);
@@ -1303,8 +1334,11 @@ armour_type hide_for_monster(monster_type mc)
 /**
  * Return whether a piece of armour is enchantable.
  *
+ * This function ignores the current enchantment level, so is still
+ * true for maximally-enchanted items.
+ *
  * @param item      The item being considered.
- * @return          The maximum enchantment the item can hold.
+ * @return          True if the armour can have a +X enchantment.
  */
 bool armour_is_enchantable(const item_def &item)
 {
@@ -1543,85 +1577,45 @@ bool check_armour_size(const item_def &item, size_type size)
     return check_armour_size(static_cast<armour_type>(item.sub_type), size);
 }
 
-/**
- * Can the given item be recharged?
- *
- * @param it            The item in question.
- * @param hide_charged  Whether wands known to be full should be included.
- * @return              Whether the item can be recharged.
- *
- */
-bool item_is_rechargeable(const item_def &it, bool hide_charged)
-{
-    if (it.base_type != OBJ_WANDS)
-        return false;
-
-    if (!hide_charged)
-        return true;
-
-    // Don't offer wands already maximally charged.
-    if (item_ident(it, ISFLAG_KNOW_PLUSES)
-        && it.charges >= wand_max_charges(it))
-    {
-        return false;
-    }
-
-    return true;
-}
-
 int wand_charge_value(int type)
 {
     switch (type)
     {
     case WAND_CLOUDS:
     case WAND_SCATTERSHOT:
-        return 3;
+        return 9;
 
     case WAND_ICEBLAST:
-    case WAND_LIGHTNING:
     case WAND_ACID:
-        return 5;
+        return 15;
 
     default:
-        return 8;
+        return 24;
 
     case WAND_FLAME:
-    case WAND_CONFUSION:
     case WAND_RANDOM_EFFECTS:
-        return 16;
+        return 48;
     }
 }
 
-int wand_max_charges(const item_def &item)
-{
-    ASSERT(item.base_type == OBJ_WANDS);
 
-    const int charge_value = wand_charge_value(item.sub_type);
-
-    if (item.props.exists(PAKELLAS_SUPERCHARGE_KEY))
-        return 9 * charge_value / 2;
-
-    return charge_value * 3;
-}
-
+#if TAG_MAJOR_VERSION == 34
 /**
- * Is the given item a wand which is both empty & known to be empty?
+ * Is the given item a wand which is empty? Wands are normally destroyed when
+ * their charges are exhausted, but empty wands can still happen through
+ * transfered games.
  *
  * @param item  The item in question.
- * @return      Whether the wand is charge-id'd and empty, or at least known
- *              {empty}.
+ * @return      Whether the wand is empty.
  */
 bool is_known_empty_wand(const item_def &item)
 {
     if (item.base_type != OBJ_WANDS)
         return false;
 
-    // not charge-ID'd, but known empty (probably through hard experience)
-    if (item.used_count == ZAPCOUNT_EMPTY)
-        return true;
-
-    return item_ident(item, ISFLAG_KNOW_PLUSES) && item.charges <= 0;
+    return item_ident(item, ISFLAG_KNOW_TYPE) && item.charges <= 0;
 }
+#endif
 
 /**
  * For purpose of Ashenzari's monster equipment identification & warning
@@ -1643,9 +1637,7 @@ bool is_offensive_wand(const item_def& item)
 
     case WAND_FLAME:
     case WAND_PARALYSIS:
-    case WAND_CONFUSION:
     case WAND_ICEBLAST:
-    case WAND_LIGHTNING:
     case WAND_POLYMORPH:
     case WAND_ACID:
     case WAND_DISINTEGRATION:
@@ -1660,6 +1652,10 @@ bool is_offensive_wand(const item_def& item)
 bool is_enchantable_armour(const item_def &arm, bool unknown)
 {
     if (arm.base_type != OBJ_ARMOUR)
+        return false;
+
+    // Armour types that can never be enchanted.
+    if (!armour_is_enchantable(arm))
         return false;
 
     // If we don't know the plusses, assume enchanting is possible.
@@ -1855,21 +1851,25 @@ bool is_blessed_convertible(const item_def &item)
                    || is_blessed(item)));
 }
 
+static map<weapon_type, weapon_type> _holy_upgrades =
+{
+    { WPN_DEMON_BLADE, WPN_EUDEMON_BLADE },
+    { WPN_DEMON_WHIP, WPN_SACRED_SCOURGE },
+    { WPN_DEMON_TRIDENT, WPN_TRISHULA },
+};
+
 bool convert2good(item_def &item)
 {
     if (item.base_type != OBJ_WEAPONS)
         return false;
 
-    switch (item.sub_type)
+    if (auto repl = map_find(_holy_upgrades, (weapon_type) item.sub_type))
     {
-    default: return false;
-
-    case WPN_DEMON_BLADE:   item.sub_type = WPN_EUDEMON_BLADE; break;
-    case WPN_DEMON_WHIP:    item.sub_type = WPN_SACRED_SCOURGE; break;
-    case WPN_DEMON_TRIDENT: item.sub_type = WPN_TRISHULA; break;
+        item.sub_type = *repl;
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 bool convert2bad(item_def &item)
@@ -1877,16 +1877,18 @@ bool convert2bad(item_def &item)
     if (item.base_type != OBJ_WEAPONS)
         return false;
 
-    switch (item.sub_type)
+    auto it = find_if(begin(_holy_upgrades), end(_holy_upgrades),
+                      [&item](const pair<const weapon_type, weapon_type> elt)
+                      {
+                          return elt.second == item.sub_type;
+                      });
+    if  (it != end(_holy_upgrades))
     {
-    default: return false;
-
-    case WPN_EUDEMON_BLADE:        item.sub_type = WPN_DEMON_BLADE; break;
-    case WPN_SACRED_SCOURGE:       item.sub_type = WPN_DEMON_WHIP; break;
-    case WPN_TRISHULA:             item.sub_type = WPN_DEMON_TRIDENT; break;
+        item.sub_type = it->first;
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 bool is_brandable_weapon(const item_def &wpn, bool allow_ranged, bool divine)
@@ -1983,7 +1985,7 @@ bool item_skills(const item_def &item, set<skill_type> &skills)
 
     // Jewellery with evokable abilities, wands and similar unwielded
     // evokers allow training.
-    if (item_is_evokable(item, false, false, true, false, true)
+    if (item_is_evokable(item, false, false, false, true)
         && !is_deck(item)
         || item.base_type == OBJ_JEWELLERY && gives_ability(item))
     {
@@ -2005,7 +2007,7 @@ bool item_skills(const item_def &item, set<skill_type> &skills)
     if (!you.could_wield(item, true, true))
         return !skills.empty();
 
-    if (item_is_evokable(item, false, false, false, false, false)
+    if (item_is_evokable(item, false, false, false, false)
         && !is_deck(item)
         || staff_uses_evocations(item)
         || item.base_type == OBJ_WEAPONS && gives_ability(item))
@@ -2112,12 +2114,12 @@ launch_retval is_launched(const actor *actor, const item_def *launcher,
                           const item_def &missile)
 {
     if (missile.base_type != OBJ_MISSILES)
-        return LRET_FUMBLED;
+        return launch_retval::FUMBLED;
 
     if (launcher && missile.launched_by(*launcher))
-        return LRET_LAUNCHED;
+        return launch_retval::LAUNCHED;
 
-    return is_throwable(actor, missile) ? LRET_THROWN : LRET_FUMBLED;
+    return is_throwable(actor, missile) ? launch_retval::THROWN : launch_retval::FUMBLED;
 }
 
 
@@ -2299,7 +2301,7 @@ bool food_is_meaty(int food_type)
             "Bad food type %d (NUM_FOODS = %d)",
             food_type, NUM_FOODS);
 
-    return Food_prop[Food_index[food_type]].carn_mod > 0;
+    return Food_prop[Food_index[food_type]].herb_nutr == 0;
 }
 
 bool food_is_meaty(const item_def &item)
@@ -2310,43 +2312,15 @@ bool food_is_meaty(const item_def &item)
     return food_is_meaty(item.sub_type);
 }
 
-bool food_is_veggie(int food_type)
-{
-    ASSERTM(food_type >= 0 && food_type < NUM_FOODS,
-            "Bad food type %d (NUM_FOODS = %d)",
-            food_type, NUM_FOODS);
-
-    return Food_prop[Food_index[food_type]].herb_mod > 0;
-}
-
-bool food_is_veggie(const item_def &item)
-{
-    if (item.base_type != OBJ_FOOD)
-        return false;
-
-    return food_is_veggie(item.sub_type);
-}
-
 int food_value(const item_def &item)
 {
     ASSERT(item.defined() && item.base_type == OBJ_FOOD);
 
-    const int herb = player_mutation_level(MUT_HERBIVOROUS);
-    const int carn = player_mutation_level(MUT_CARNIVOROUS);
-
     const food_def &food = Food_prop[Food_index[item.sub_type]];
 
-    int ret = food.value;
-
-    ret += carn * food.carn_mod;
-    ret += herb * food.herb_mod;
-
-    return ret;
-}
-
-bool is_fruit(const item_def & item)
-{
-    return item.is_type(OBJ_FOOD, FOOD_FRUIT);
+    return you.get_mutation_level(MUT_HERBIVOROUS) > 0 ? food.herb_nutr
+         : you.get_mutation_level(MUT_CARNIVOROUS) > 0 ? food.carn_nutr
+                                                       : food.normal_nutr;
 }
 
 //
@@ -2496,6 +2470,16 @@ int get_armour_repel_missiles(const item_def &arm, bool check_artp)
 
     if (check_artp && is_artefact(arm))
         return artefact_property(arm, ARTP_RMSL);
+
+    return false;
+}
+
+int get_armour_cloud_immunity(const item_def &arm)
+{
+    ASSERT(arm.base_type == OBJ_ARMOUR);
+
+    if (get_armour_ego_type(arm) == SPARM_CLOUD_IMMUNE)
+        return true;
 
     return false;
 }
@@ -2743,10 +2727,12 @@ bool gives_ability(const item_def &item)
         if (artefact_property(item, static_cast<artefact_prop_type>(rap)))
             return true;
 
-#if TAG_MAJOR_VERSION == 34
-    if (artefact_property(item, ARTP_FOG))
+    // Unrands that grant an evokable ability.
+    if (is_unrandom_artefact(item, UNRAND_THIEF)
+        || is_unrandom_artefact(item, UNRAND_RATSKIN_CLOAK))
+    {
         return true;
-#endif
+    }
 
     return false;
 }
@@ -2985,12 +2971,19 @@ void seen_item(const item_def &item)
         }
     }
 
+    _maybe_note_found_unrand(item);
+
     // major hack. Deconstify should be safe here, but it's still repulsive.
-    const_cast<item_def &>(item).flags |= ISFLAG_SEEN;
+    item_def& malleable_item = const_cast<item_def &>(item);
+
+    malleable_item.flags |= ISFLAG_SEEN;
     if (have_passive(passive_t::identify_items))
-        const_cast<item_def &>(item).flags |= ISFLAG_KNOW_CURSE;
-    if (item.base_type == OBJ_GOLD && !item.plus)
-        const_cast<item_def &>(item).plus = (you_worship(GOD_ZIN)) ? 2 : 1;
+        malleable_item.flags |= ISFLAG_KNOW_CURSE;
+    if (item.base_type == OBJ_GOLD && !item.tithe_state)
+    {
+        malleable_item.plus = (you_worship(GOD_ZIN)) ? TS_FULL_TITHE
+                                                     : TS_NO_PIETY;
+    }
 
     if (item_type_has_ids(item.base_type) && !is_artefact(item)
         && item_ident(item, ISFLAG_KNOW_TYPE)
@@ -3041,11 +3034,50 @@ int &evoker_debt(int evoker_type)
     return you.props[*prop_name].get_int();
 }
 
-bool evoker_is_charged(const item_def &item)
+/**
+ * How many max charges can the given XP evoker have?
+ *
+ * @param evoker_type The type of evoker.
+ * @returns The max number of charges.
+ */
+int evoker_max_charges(int evoker_type)
 {
-    return evoker_debt(item.sub_type) == 0;
+    return evoker_type == MISC_LIGHTNING_ROD ? LIGHTNING_MAX_CHARGE : 1;
 }
 
+/**
+ * What is the XP debt of using one charge of the given XP evoker type? This
+ * debt represents a cost after scaling by a level-based XP factor.
+ *
+ * @params evoker_type The item sub type of the evoker
+ * @returns The debt of using a charge.
+ */
+int evoker_charge_xp_debt(int evoker_type)
+{
+    return evoker_type == MISC_LIGHTNING_ROD
+        ? XP_EVOKE_LIGHTNING_ROD_DEBT
+        : XP_EVOKE_DEBT;
+}
+
+/**
+ * How many remaining charges does the given XP evoker have?
+ *
+ * @param evoker_type The item subtype of the evoker.
+ * @returns The number of remaining charges.
+ */
+int evoker_charges(int evoker_type)
+{
+    const int max_charges = evoker_max_charges(evoker_type);
+    const int charge_xp_debt = evoker_charge_xp_debt(evoker_type);
+    const int debt = evoker_debt(evoker_type);
+    return min(max_charges,
+            max_charges - debt / charge_xp_debt - (debt % charge_xp_debt > 0));
+}
+
+void expend_xp_evoker(int evoker_type)
+{
+    evoker_debt(evoker_type) += evoker_charge_xp_debt(evoker_type);
+}
 
 /// witchcraft. copied from mon-util.h's get_resist
 static inline int _get_armour_flag(armflags_t all, armour_flag res)

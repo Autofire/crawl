@@ -714,25 +714,18 @@ static void _handle_magic_contamination()
     // every turn instead of every 20 turns, so everything has been multiplied
     // by 50 and scaled to you.time_taken.
 
+    //Increase contamination each turn while invisible
     if (you.duration[DUR_INVIS])
-        added_contamination += 30;
+        added_contamination += INVIS_CONTAM_PER_TURN;
+    //If not invisible, normal dissipation
+    else
+        added_contamination -= 25;
 
-    if (you.duration[DUR_HASTE])
-        added_contamination += 30;
-
-#if TAG_MAJOR_VERSION == 34
-    if (you.duration[DUR_REGENERATION] && you.species == SP_DJINNI)
-        added_contamination += 20;
-#endif
     // The Orb halves dissipation (well a bit more, I had to round it),
     // but won't cause glow on its own -- otherwise it'd spam the player
     // with messages about contamination oscillating near zero.
     if (you.magic_contamination && player_has_orb())
         added_contamination += 13;
-
-    // Normal dissipation
-    if (!you.duration[DUR_INVIS] && !you.duration[DUR_HASTE])
-        added_contamination -= 25;
 
     // Scaling to turn length
     added_contamination = div_rand_round(added_contamination * you.time_taken,
@@ -756,36 +749,25 @@ static void _magic_contamination_effects()
 
         beam.flavour      = BEAM_RANDOM;
         beam.glyph        = dchar_glyph(DCHAR_FIRED_BURST);
-        beam.damage       = dice_def(3, div_rand_round(contam, 2000 ));
+        beam.damage       = dice_def(3, div_rand_round(contam, 2000));
         beam.target       = you.pos();
         beam.name         = "magical storm";
         //XXX: Should this be MID_PLAYER?
         beam.source_id    = MID_NOBODY;
         beam.aux_source   = "a magical explosion";
-        beam.ex_size      = max(1, min(9, div_rand_round(contam, 15000)));
+        beam.ex_size      = max(1, min(LOS_RADIUS,
+                                       div_rand_round(contam, 15000)));
         beam.ench_power   = div_rand_round(contam, 200);
         beam.is_explosion = true;
-
-        // Undead enjoy extra contamination explosion damage because
-        // the magical contamination has a harder time dissipating
-        // through non-living flesh. :-)
-        if (you.undead_state() != US_ALIVE)
-            beam.damage.size *= 2;
 
         beam.explode();
     }
 
-#if TAG_MAJOR_VERSION == 34
-    const mutation_permanence_class mutclass = you.species == SP_DJINNI
-        ? MUTCLASS_TEMPORARY
-        : MUTCLASS_NORMAL;
-#else
     const mutation_permanence_class mutclass = MUTCLASS_NORMAL;
-#endif
 
     // We want to warp the player, not do good stuff!
     mutate(one_chance_in(5) ? RANDOM_MUTATION : RANDOM_BAD_MUTATION,
-           "mutagenic glow", true, coinflip(), false, false, mutclass, false);
+           "mutagenic glow", true, coinflip(), false, false, mutclass);
 
     // we're meaner now, what with explosions and whatnot, but
     // we dial down the contamination a little faster if its actually
@@ -886,9 +868,11 @@ static void _jiyva_effects(int /*time_delta*/)
         }
     }
 
+    // Gnolls can't shift stats
     if (have_passive(passive_t::fluid_stats)
         && x_chance_in_y(you.piety / 4, MAX_PIETY)
-        && !player_under_penance() && one_chance_in(4))
+        && !player_under_penance() && one_chance_in(4)
+        && you.species != SP_GNOLL)
     {
         jiyva_stat_action();
     }
@@ -899,7 +883,7 @@ static void _jiyva_effects(int /*time_delta*/)
 
 static void _evolve(int time_delta)
 {
-    if (int lev = player_mutation_level(MUT_EVOLUTION))
+    if (int lev = you.get_mutation_level(MUT_EVOLUTION))
         if (one_chance_in(2 / lev)
             && you.attribute[ATTR_EVOL_XP] * (1 + random2(10))
                > (int)exp_needed(you.experience_level + 1))
@@ -909,14 +893,13 @@ static void _evolve(int time_delta)
             bool evol = one_chance_in(5) ?
                 delete_mutation(RANDOM_BAD_MUTATION, "evolution", false) :
                 mutate(random_choose(RANDOM_GOOD_MUTATION, RANDOM_MUTATION),
-                       "evolution", false, false, false, false, MUTCLASS_NORMAL,
-                       true);
+                       "evolution", false, false, false, false, MUTCLASS_NORMAL);
             // it would kill itself anyway, but let's speed that up
             if (one_chance_in(10)
                 && (!you.rmut_from_item()
                     || one_chance_in(10)))
             {
-                const string reason = (you.mutation[MUT_EVOLUTION] == 1)
+                const string reason = (you.get_mutation_level(MUT_EVOLUTION) == 1)
                                     ? "end of evolution"
                                     : "decline of evolution";
                 evol |= delete_mutation(MUT_EVOLUTION, reason, false);
@@ -1176,7 +1159,7 @@ static void _catchup_monster_moves(monster* mon, int turns)
     {
         // You might still see them disappear if you were quick
         if (turns > 2)
-            monster_die(mon, KILL_DISMISSED, NON_MONSTER);
+            monster_die(*mon, KILL_DISMISSED, NON_MONSTER);
         else
         {
             mon_enchant abj  = mon->get_ench(ENCH_ABJ);
@@ -1304,6 +1287,7 @@ void monster::timeout_enchantments(int levels)
         case ENCH_FRIENDLY_BRIBED: case ENCH_CORROSION: case ENCH_GOLD_LUST:
         case ENCH_RESISTANCE: case ENCH_HEXED: case ENCH_IDEALISED:
         case ENCH_BOUND_SOUL: case ENCH_STILL_WINDS: case ENCH_RING_OF_THUNDER:
+        case ENCH_WHIRLWIND_PINNED:
             lose_ench_levels(entry.second, levels);
             break;
 
@@ -1368,7 +1352,7 @@ void monster::timeout_enchantments(int levels)
         {
             const int actdur = speed_to_duration(speed) * levels;
             if (lose_ench_duration(entry.first, actdur))
-                monster_die(this, KILL_MISC, NON_MONSTER, true);
+                monster_die(*this, KILL_MISC, NON_MONSTER, true);
             break;
         }
 
@@ -1419,32 +1403,8 @@ void update_level(int elapsedTime)
         mons_total++;
 #endif
 
-        // Pacified monsters often leave the level now.
-        if (mi->pacified() && turns > random2(40) + 21)
-        {
-            make_mons_leave_level(*mi);
+        if (!update_monster(**mi, turns))
             continue;
-        }
-
-        // Following monsters don't get movement.
-        if (mi->flags & MF_JUST_SUMMONED)
-            continue;
-
-        // XXX: Allow some spellcasting (like Healing and Teleport)? - bwr
-        // const bool healthy = (mi->hit_points * 2 > mi->max_hit_points);
-
-        mi->heal(div_rand_round(turns * mi->off_level_regen_rate(), 100));
-
-        // Handle nets specially to remove the trapping property of the net.
-        if (mi->caught())
-            mi->del_ench(ENCH_HELD, true);
-
-        _catchup_monster_moves(*mi, turns);
-
-        mi->foe_memory = max(mi->foe_memory - turns, 0);
-
-        if (turns >= 10 && mi->alive())
-            mi->timeout_enchantments(turns / 10);
     }
 
 #ifdef DEBUG_DIAGNOSTICS
@@ -1452,6 +1412,47 @@ void update_level(int elapsedTime)
 #endif
 
     delete_all_clouds();
+}
+
+/**
+ * Update the monster upon the player's return
+ *
+ * @param mon   The monster to update.
+ * @param turns How many turns (not auts) since the monster left the player
+ * @returns     Returns nullptr if monster was destroyed by the update;
+ *              Returns the updated monster if it still exists.
+ */
+monster* update_monster(monster& mon, int turns)
+{
+    // Pacified monsters often leave the level now.
+    if (mon.pacified() && turns > random2(40) + 21)
+    {
+        make_mons_leave_level(&mon);
+        return nullptr;
+    }
+
+    // Ignore monsters flagged to skip their next action
+    if (mon.flags & MF_JUST_SUMMONED)
+        return &mon;
+
+    // XXX: Allow some spellcasting (like Healing and Teleport)? - bwr
+    // const bool healthy = (mon->hit_points * 2 > mon->max_hit_points);
+
+    mon.heal(div_rand_round(turns * mon.off_level_regen_rate(), 100));
+
+    // Handle nets specially to remove the trapping property of the net.
+    if (mon.caught())
+        mon.del_ench(ENCH_HELD, true);
+
+    _catchup_monster_moves(&mon, turns);
+
+    mon.foe_memory = max(mon.foe_memory - turns, 0);
+
+    // FIXME:  Convert literal string 10 to constant to convert to auts
+    if (turns >= 10 && mon.alive())
+        mon.timeout_enchantments(turns / 10);
+
+    return &mon;
 }
 
 static void _drop_tomb(const coord_def& pos, bool premature, bool zin)
@@ -1652,6 +1653,12 @@ void timeout_terrain_changes(int duration, bool force)
         if (marker->change_type == TERRAIN_CHANGE_DOOR_SEAL
             && !feat_is_sealed(grd(marker->pos)))
         {
+            // TODO: could this be done inside `revert_terrain_change`? The
+            // two things to test are corrupting sealed doors, and destroying
+            // sealed doors. See 7aedcd24e1be3ed58fef9542786c1a194e4c07d0 and
+            // 6c286a4f22bcba4cfcb36053eb066367874be752.
+            if (marker->duration <= 0)
+                env.markers.remove(marker); // deletes `marker`
             continue;
         }
 
@@ -1662,6 +1669,7 @@ void timeout_terrain_changes(int duration, bool force)
         {
             if (you.see_cell(marker->pos))
                 num_seen[marker->change_type]++;
+            // will delete `marker`.
             revert_terrain_change(marker->pos, marker->change_type);
         }
     }

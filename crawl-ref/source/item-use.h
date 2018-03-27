@@ -3,13 +3,13 @@
  * @brief Functions for making use of inventory items.
 **/
 
-#ifndef ITEM_USE_H
-#define ITEM_USE_H
+#pragma once
 
 #include <functional>
 #include <string>
 
 #include "enum.h"
+#include "operation-types.h"
 
 item_def* use_an_item(int item_type, operation_types oper, const char* prompt,
                       function<bool ()> allowcancel = [](){ return true; });
@@ -55,14 +55,3 @@ bool enchant_armour(int &ac_change, bool quiet, item_def &arm);
 void random_uselessness();
 
 void prompt_inscribe_item();
-
-#ifdef USE_TILE
-void tile_item_use_floor(int idx);
-void tile_item_pickup(int idx, bool part);
-void tile_item_drop(int idx, bool partdrop);
-void tile_item_eat_floor(int idx);
-void tile_item_use(int idx);
-void tile_item_use_secondary(int idx);
-#endif
-
-#endif

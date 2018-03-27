@@ -809,7 +809,7 @@ static void _animate_weapon(int pow, actor* target)
         wpn->flags |= ISFLAG_THROWN;
     }
     // If sac love, the weapon will go after you, not the target.
-    const bool sac_love = player_mutation_level(MUT_NO_LOVE);
+    const bool sac_love = you.get_mutation_level(MUT_NO_LOVE);
     // Self-casting haunts yourself! MUT_NO_LOVE overrides force friendly.
     const bool friendly = !target_is_player && !sac_love;
     const int dur = min(2 + (random2(pow) / 5), 6);
@@ -985,7 +985,7 @@ spret_type cast_summon_guardian_golem(int pow, god_type god, bool fail)
     if (mons)
     {
         // Immediately apply injury bond
-        guardian_golem_bond(mons);
+        guardian_golem_bond(*mons);
 
         mpr("A guardian golem appears, shielding your allies.");
     }
@@ -1206,7 +1206,7 @@ spret_type cast_shadow_creatures(int st, god_type god, level_id place,
 
             // If we didn't find a valid spell set yet, just give up
             if (tries > 20)
-                monster_die(mons, KILL_RESET, NON_MONSTER);
+                monster_die(*mons, KILL_RESET, NON_MONSTER);
             else
             {
                 // Choose a new duration based on HD.
@@ -1234,7 +1234,7 @@ spret_type cast_shadow_creatures(int st, god_type god, level_id place,
                     && (mid_t) mi->props["band_leader"].get_int() == mons->mid)
                 {
                     if (player_will_anger_monster(**mi))
-                        monster_die(*mi, KILL_RESET, NON_MONSTER);
+                        monster_die(**mi, KILL_RESET, NON_MONSTER);
 
                     mi->props["summon_id"].get_int() = mons->mid;
                 }
@@ -1412,7 +1412,8 @@ spret_type cast_summon_forest(actor* caster, int pow, god_type god, bool fail)
         fail_check();
         // Replace some rock walls with trees, then scatter a smaller number
         // of trees on unoccupied floor (such that they do not break connectivity)
-        for (distance_iterator di(caster->pos(), false, true, LOS_RADIUS); di; ++di)
+        for (distance_iterator di(caster->pos(), false, true,
+                                  LOS_DEFAULT_RANGE); di; ++di)
         {
             if ((feat_is_wall(grd(*di)) && !feat_is_permarock(grd(*di))
                  && x_chance_in_y(pow, 150))
@@ -1634,7 +1635,7 @@ static bool _raise_remains(const coord_def &pos, int corps, beh_type beha,
 
     // No experience for monsters animated by god wrath or the Sword of
     // Zonguldrok.
-    if (nas != "")
+    if (!nas.empty())
         mg.extra_flags |= MF_NO_REWARD;
 
     mg.non_actor_summoner = nas;
@@ -2624,7 +2625,7 @@ void end_battlesphere(monster* mons, bool killed)
         if (!cell_is_solid(mons->pos()))
             place_cloud(CLOUD_MAGIC_TRAIL, mons->pos(), 3 + random2(3), mons);
 
-        monster_die(mons, KILL_RESET, NON_MONSTER);
+        monster_die(*mons, KILL_RESET, NON_MONSTER);
     }
 }
 
@@ -3134,7 +3135,7 @@ void end_spectral_weapon(monster* mons, bool killed, bool quiet)
     }
 
     if (!killed)
-        monster_die(mons, KILL_RESET, NON_MONSTER);
+        monster_die(*mons, KILL_RESET, NON_MONSTER);
 }
 
 bool trigger_spectral_weapon(actor* agent, const actor* target)

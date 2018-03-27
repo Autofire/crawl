@@ -14,6 +14,7 @@
 #include "english.h"
 #include "god-item.h"
 #include "item-name.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "religion.h"
 #include "spl-book.h"
@@ -40,8 +41,7 @@ spschool_flag_type random_book_theme()
 {
     vector<spschool_flag_type> disciplines;
     for (auto discipline : spschools_type::range())
-        if (!(discipline & SPTYP_DIVINATION))
-            disciplines.push_back(discipline);
+        disciplines.push_back(discipline);
     return disciplines[random2(disciplines.size())];
 }
 
@@ -426,7 +426,7 @@ static void _get_spell_list(vector<spell_type> &spells, int level,
                 continue;
         }
 
-        if (avoid_known && you.seen_spell[spell])
+        if (avoid_known && you.spell_library[spell])
             continue;
 
         // fixed level randart: only include spells of the given level
@@ -661,7 +661,7 @@ bool make_book_level_randart(item_def &book, int level)
             continue;
         }
 
-        if (avoid_seen[spell_pos] && you.seen_spell[spell] && coinflip())
+        if (avoid_seen[spell_pos] && you.spell_library[spell] && coinflip())
         {
             // Only once.
             avoid_seen[spell_pos] = false;
@@ -972,6 +972,8 @@ void make_book_kiku_gift(item_def &book, bool first)
     for (int i = 0; i < RANDBOOK_SIZE; i++)
         chosen_spells[i] = SPELL_NO_SPELL;
 
+    // Each book should guarantee the player at least one corpse-using
+    // spell, to complement Receive Corpses.
     if (first)
     {
         bool can_bleed = you.species != SP_GARGOYLE
@@ -979,44 +981,47 @@ void make_book_kiku_gift(item_def &book, bool first)
             && you.species != SP_MUMMY;
         bool can_regen = you.species != SP_DEEP_DWARF
             && you.species != SP_MUMMY;
-        bool pain = coinflip();
 
-        chosen_spells[0] = pain ? SPELL_PAIN : SPELL_ANIMATE_SKELETON;
+        chosen_spells[0] = SPELL_PAIN;
         chosen_spells[1] = SPELL_CORPSE_ROT;
-        chosen_spells[2] = (can_bleed ? SPELL_SUBLIMATION_OF_BLOOD
-                            : pain ? SPELL_ANIMATE_SKELETON
-                            : SPELL_PAIN);
+        chosen_spells[2] = SPELL_ANIMATE_SKELETON;
+        if (can_bleed) // Replace one of the corpse-using spells
+            chosen_spells[random_range(1, 2)] = SPELL_SUBLIMATION_OF_BLOOD;
+
         chosen_spells[3] = (!can_regen || coinflip())
             ? SPELL_VAMPIRIC_DRAINING : SPELL_REGENERATION;
-        chosen_spells[4] = SPELL_CONTROL_UNDEAD;
-
     }
     else
     {
-        chosen_spells[0] = coinflip() ? SPELL_ANIMATE_DEAD
-            : SPELL_CIGOTUVIS_EMBRACE;
+        chosen_spells[0] = coinflip() ? SPELL_ANIMATE_DEAD : SPELL_SIMULACRUM;
         chosen_spells[1] = (you.species == SP_FELID || coinflip())
-            ? SPELL_AGONY : SPELL_EXCRUCIATING_WOUNDS;
+            ? SPELL_BORGNJORS_VILE_CLUTCH : SPELL_EXCRUCIATING_WOUNDS;
         chosen_spells[2] = random_choose(SPELL_BOLT_OF_DRAINING,
-                                         SPELL_SIMULACRUM,
+                                         SPELL_AGONY,
                                          SPELL_DEATH_CHANNEL);
+
         spell_type extra_spell;
         do
         {
             extra_spell = random_choose(SPELL_ANIMATE_DEAD,
-                                        SPELL_CIGOTUVIS_EMBRACE,
                                         SPELL_AGONY,
+                                        SPELL_BORGNJORS_VILE_CLUTCH,
                                         SPELL_EXCRUCIATING_WOUNDS,
                                         SPELL_BOLT_OF_DRAINING,
                                         SPELL_SIMULACRUM,
                                         SPELL_DEATH_CHANNEL);
-            if (you.species == SP_FELID && extra_spell == SPELL_EXCRUCIATING_WOUNDS)
+            if (you.species == SP_FELID
+                && extra_spell == SPELL_EXCRUCIATING_WOUNDS)
+            {
                 extra_spell = SPELL_NO_SPELL;
+            }
+
             for (int i = 0; i < 3; i++)
                 if (extra_spell == chosen_spells[i])
                     extra_spell = SPELL_NO_SPELL;
         }
         while (extra_spell == SPELL_NO_SPELL);
+
         chosen_spells[3] = extra_spell;
         chosen_spells[4] = SPELL_DISPEL_UNDEAD;
     }
@@ -1059,7 +1064,7 @@ static int _randbook_spell_weight(spell_type spell, int agent)
         return 1;
 
     // prefer unseen spells
-    const int seen_weight = you.seen_spell[spell] ? 1 : 4;
+    const int seen_weight = you.spell_library[spell] ? 1 : 4;
 
     // prefer spells roughly approximating the player's overall spellcasting
     // ability (?????)

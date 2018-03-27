@@ -23,6 +23,7 @@
 #include "fprop.h"
 #include "invent.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "jobs.h"
 #include "libutil.h"
@@ -211,7 +212,7 @@ again:
 #ifdef USE_TILE_WEB
             tiles.send_exit_reason("cancel");
 #endif
-            game_ended();
+            game_ended(game_exit::abort);
         case 'X':
             cprintf("\nGoodbye!");
 #ifdef USE_TILE_WEB
@@ -457,7 +458,7 @@ void hints_death_screen()
         print_hint("death conjurer melee");
     }
     else if (you_worship(GOD_TROG) && Hints.hints_berserk_counter <= 3
-             && !you.berserk() && !you.duration[DUR_EXHAUSTED])
+             && !you.berserk() && !you.duration[DUR_BERSERK_COOLDOWN])
     {
         print_hint("death berserker unberserked");
     }
@@ -783,18 +784,12 @@ static bool _advise_use_wand()
         if (!item_type_known(obj))
             return true;
 
-        // Empty wands are no good.
-        if (is_known_empty_wand(obj))
-            continue;
-
         // Can it be used to fight?
         switch (obj.sub_type)
         {
         case WAND_FLAME:
         case WAND_PARALYSIS:
-        case WAND_CONFUSION:
         case WAND_ICEBLAST:
-        case WAND_LIGHTNING:
         case WAND_ENSLAVEMENT:
         case WAND_ACID:
         case WAND_RANDOM_EFFECTS:
@@ -1154,10 +1149,8 @@ void learned_something_new(hints_event_type seen_what, coord_def gc)
              << "</w>'). Type </console>"
                 "<tiles>. Simply <w>left-click</w> on it, or press </tiles>"
                 "<w>%</w> to evoke it.\n"
-                "Until you fully identify a wand, either with a scroll of "
-                "identification or by zapping it after gaining some Evocations "
-                "skill, you won't know how many charges it has, and you'll "
-                "waste a few charges every time you evoke it.";
+                "If you find more wands of the same type, they'll merge "
+                "into this wand and add charges to it.";
         cmd.push_back(CMD_EVOKE);
         break;
 
@@ -1282,7 +1275,7 @@ void learned_something_new(hints_event_type seen_what, coord_def gc)
              << "</w>')</console>"
                 ". You can eat it by typing <w>e</w>"
                 "<tiles> or by <w>left-clicking</w> on it</tiles>"
-                ". However, it is usually best to conserve rations and fruit, "
+                ". However, it is usually best to conserve rations, "
                 "since raw meat from corpses is generally plentiful.";
         break;
 
@@ -1326,7 +1319,7 @@ void learned_something_new(hints_event_type seen_what, coord_def gc)
         break;
 
     case HINT_SEEN_JEWELLERY:
-        text << "You have picked up a a piece of jewellery, either a ring"
+        text << "You have picked up a piece of jewellery, either a ring"
              << "<console> ('<w>"
              << stringize_glyph(get_item_symbol(SHOW_ITEM_RING))
              << "</w>')</console>"
@@ -1337,7 +1330,7 @@ void learned_something_new(hints_event_type seen_what, coord_def gc)
              << ". Type <w>%</w> to put it on and <w>%</w> to remove "
                 "it. You can view its properties from your <w>%</w>nventory</console>"
              << "<tiles>. You can click on it to put it on, and click again "
-                "to remove it. By <w>right-clicking> on it, you can view its "
+                "to remove it. By <w>right-clicking</w> on it, you can view its "
                 "properties</tiles>.";
         cmd.push_back(CMD_WEAR_JEWELLERY);
         cmd.push_back(CMD_REMOVE_JEWELLERY);
@@ -2553,7 +2546,7 @@ void learned_something_new(hints_event_type seen_what, coord_def gc)
     case HINT_GLOWING:
         text << "You've accumulated so much magical contamination that you're "
                 "glowing! You usually acquire magical contamination from using "
-                "some powerful magics, like invisibility or haste, or from "
+                "some powerful magics, like invisibility, or from "
                 "miscasting spells. ";
 
         if (!player_severe_contamination())
@@ -2646,7 +2639,7 @@ void learned_something_new(hints_event_type seen_what, coord_def gc)
             listed.push_back("your <w>%</w>bilities");
             cmd.push_back(CMD_USE_ABILITY);
         }
-        if (Hints.hints_type != HINT_MAGIC_CHAR || how_mutated())
+        if (Hints.hints_type != HINT_MAGIC_CHAR || you.how_mutated())
         {
             listed.push_back("your set of mutations (<w>%</w>)");
             cmd.push_back(CMD_DISPLAY_MUTATIONS);
@@ -3022,7 +3015,7 @@ string hints_describe_item(const item_def &item)
                 ostr << _hints_throw_stuff(item);
                 cmd.push_back(CMD_FIRE);
             }
-            else if (is_launched(&you, you.weapon(), item))
+            else if (is_launched(&you, you.weapon(), item) == launch_retval::LAUNCHED)
             {
                 ostr << "As you're already wielding the appropriate launcher, "
                         "you can simply ";
@@ -3453,7 +3446,7 @@ void hints_inscription_info(string prompt)
     {
         text << "\n"
          "Inscriptions are a powerful concept of Dungeon Crawl.\n"
-         "You can inscribe items to to comment on them \n"
+         "You can inscribe items to comment on them \n"
          "or to set rules for item interaction. If you are new to Crawl, \n"
          "you can safely ignore this feature.";
 
@@ -4005,5 +3998,11 @@ void tutorial_msg(const char *key, bool end)
     for (const string &chunk : split_string("\n", text, false))
         mprf(MSGCH_TUTORIAL, "%s", chunk.c_str());
 
-    stop_running();
+    // tutorial_msg can get called in an vault epilogue during --builddb,
+    // which can lead to a crash on tiles builds in runrest::stop as
+    // there is no `tiles`. This seemed like the best place to fix this.
+    #ifdef USE_TILE_LOCAL
+    if (!crawl_state.tiles_disabled)
+    #endif
+        stop_running();
 }

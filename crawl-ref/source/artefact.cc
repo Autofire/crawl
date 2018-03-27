@@ -23,6 +23,7 @@
 #include "god-item.h"
 #include "item-name.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "libutil.h"
 #include "makeitem.h"
@@ -33,6 +34,15 @@
 #include "state.h"
 #include "stringutil.h"
 #include "unicode.h"
+
+// Putting this here since art-enum.h is generated.
+
+// Make sure there's enough room in you.unique_items to hold all
+// the unrandarts.
+COMPILE_CHECK(NUM_UNRANDARTS < MAX_UNRANDARTS);
+// Non-artefact brands and unrandart indexes both go into
+// item.special, so make sure they don't overlap.
+COMPILE_CHECK((int) NUM_SPECIAL_WEAPONS < (int) UNRAND_START);
 
 static bool _god_fits_artefact(const god_type which_god, const item_def &item,
                                bool name_check_only = false)
@@ -653,9 +663,6 @@ static const artefact_prop_data artp_data[] =
         []() { return 1; }, nullptr, 0, 0 },
     { "+Fly", ARTP_VAL_BOOL, 15,    // ARTP_FLY,
         []() { return 1; }, nullptr, 0, 0 },
-#if TAG_MAJOR_VERSION > 34
-    { "+Fog", ARTP_VAL_BOOL, 0, nullptr, nullptr, 0, 0 }, // ARTP_FOG,
-#endif
     { "+Blink", ARTP_VAL_BOOL, 15,  // ARTP_BLINK,
         []() { return 1; }, nullptr, 0, 0 },
     { "+Rage", ARTP_VAL_BOOL, 15,   // ARTP_BERSERK,
@@ -1713,9 +1720,9 @@ static jewellery_type octoring_types[8] =
 
 static void _make_octoring(item_def &item)
 {
-    if (you.octopus_king_rings == 255)
+    if (you.octopus_king_rings == 0xff)
     {
-        ASSERT(you.wizard || crawl_state.test);
+        ASSERT(you.wizard || you.suppress_wizard || crawl_state.test);
         item.sub_type = octoring_types[random2(8)];
         return;
     }
@@ -1729,7 +1736,7 @@ static void _make_octoring(item_def &item)
     you.octopus_king_rings |= 1 << which;
 
     // If there are any types left, unset the 'already found' flag
-    if (you.octopus_king_rings != 255)
+    if (you.octopus_king_rings != 0xff)
         _set_unique_item_status(UNRAND_OCTOPUS_KING_RING, UNIQ_NOT_EXISTS);
 }
 

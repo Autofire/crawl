@@ -3,8 +3,7 @@
  * @brief data handlers for player spell list
 **/
 
-#ifndef SPL_UTIL_H
-#define SPL_UTIL_H
+#pragma once
 
 #include <functional>
 
@@ -22,15 +21,14 @@ enum spschool_flag_type
   SPTYP_TRANSMUTATION  = 1<<5,
   SPTYP_NECROMANCY     = 1<<6,
   SPTYP_SUMMONING      = 1<<7,
-  SPTYP_DIVINATION     = 1<<8,
-  SPTYP_TRANSLOCATION  = 1<<9,
-  SPTYP_POISON         = 1<<10,
-  SPTYP_EARTH          = 1<<11,
-  SPTYP_AIR            = 1<<12,
+  SPTYP_TRANSLOCATION  = 1<<8,
+  SPTYP_POISON         = 1<<9,
+  SPTYP_EARTH          = 1<<10,
+  SPTYP_AIR            = 1<<11,
   SPTYP_LAST_SCHOOL    = SPTYP_AIR,
   SPTYP_RANDOM         = SPTYP_LAST_SCHOOL << 1,
 };
-DEF_BITFIELD(spschools_type, spschool_flag_type, 12);
+DEF_BITFIELD(spschools_type, spschool_flag_type, 11);
 const int SPTYP_LAST_EXPONENT = spschools_type::last_exponent;
 COMPILE_CHECK(spschools_type::exponent(SPTYP_LAST_EXPONENT)
               == SPTYP_LAST_SCHOOL);
@@ -47,6 +45,7 @@ enum spell_highlight_colours
     COL_USELESS      = DARKGRAY,    // ability would have no useful effect
     COL_INAPPLICABLE = COL_USELESS, // ability cannot be meanifully applied (eg, no targets)
     COL_FORBIDDEN    = LIGHTRED,    // The player's god hates this ability
+    COL_DANGEROUS    = LIGHTRED,    // ability/spell use could be dangerous
 };
 
 bool is_valid_spell(spell_type spell);
@@ -68,7 +67,7 @@ int spell_hunger(spell_type which_spell);
 int spell_mana(spell_type which_spell);
 int spell_difficulty(spell_type which_spell);
 int spell_power_cap(spell_type spell);
-int spell_range(spell_type spell, int pow, bool player_spell = true);
+int spell_range(spell_type spell, int pow, bool allow_bonus = true);
 int spell_noise(spell_type spell);
 int spell_effect_noise(spell_type spell);
 
@@ -130,10 +129,9 @@ string spell_uselessness_reason(spell_type spell, bool temp = true,
 
 int spell_highlight_by_utility(spell_type spell,
                                 int default_colour = COL_UNKNOWN,
-                                bool transient = false);
+                                bool transient = false,
+                                bool memcheck = false);
 bool spell_no_hostile_in_range(spell_type spell);
 
 bool spell_is_soh_breath(spell_type spell);
 const vector<spell_type> *soh_breath_spells(spell_type spell);
-
-#endif

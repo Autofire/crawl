@@ -3,9 +3,11 @@
  * @brief Look-up functions for dungeon and item tiles.
 **/
 
-#ifndef TILEPICK_H
-#define TILEPICK_H
+#pragma once
 
+#include "ability-type.h"
+#include "command-type.h"
+#include "game-type.h"
 #include "tiledef_defines.h"
 
 #define TILE_NUM_KEY "tile_num"
@@ -47,6 +49,7 @@ tileidx_t tileidx_skill(const skill_type skill, int train);
 tileidx_t tileidx_command(const command_type cmd);
 tileidx_t tileidx_gametype(const game_type gtype);
 tileidx_t tileidx_ability(const ability_type ability);
+tileidx_t tileidx_branch(const branch_type br);
 
 tileidx_t tileidx_known_brand(const item_def &item);
 tileidx_t tileidx_corpse_brand(const item_def &item);
@@ -71,6 +74,5 @@ string tile_debug_string(tileidx_t fg, tileidx_t bg, tileidx_t cloud, char prefi
 
 void tile_init_props(monster* mon);
 tileidx_t tileidx_monster_base(int type, bool in_water = false, int colour = 0,
-                               int number = 4, int tile_num_prop = 0);
+                               int number = 4, int tile_num_prop = 0, bool vary = true);
 tileidx_t tileidx_mon_clamp(tileidx_t tile, int offset);
-#endif

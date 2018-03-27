@@ -1,31 +1,166 @@
-Stone Soup 0.20 (up to 0.20-a0-617-g89cf17a)
---------------------------------------------
+Stone Soup 0.21 (20180105)
+--------------------------
 
 Highlights
 ----------
-* Have you taken the survey yet?
-* http://crawl.develz.org/wordpress/dcss-player-survey
-* :)
+* New species: Gnolls
+* New god: Wu Jian Council
+* New spell: Borgnjor's Vile Clutch
 
 Branches, Environment
 ---------------------
-* The Slime treasure vault's walls are breached on their master's death.
-* Web traps created in play (by e.g. jumping spiders) are destroyed on
-  escape.
+* The rate at which unique Pan lord levels appear in Pandemonium is increased.
+* Transporters now have a 'landing site' that indicates their destination.
+* The Hellbinder and Cloud Mage Wizlabs have been revamped to give greater and
+  more varied challenges as well as improved loot.
 
 Character
 ---------
-* New species: Barachians, with an powerful innate Hop ability, balanced by
-  slow movement and low attributes.
+* New species: Gnolls, with extremely high aptitudes for all skills, but
+  an inability to focus: Gnolls always train all skills equally, regardless
+  of whether they have the requisite items or spells.
+* Ogres now have better aptitudes in shortblades, longblades, and axes.
+
+Gods
+----
+* New (temple) god: Wu Jian Council
+  - Grants free 'martial' attacks from certain movement actions:
+    * 0*: Moving toward an enemy triggers 'Lunge', which attacks the enemy and
+      does extra damage.
+    * 1*: Moving between tiles adjacent to a monster triggers 'Whirlwind',
+      which attacks all adjacent foes and 'pins' them, preventing one turn of
+      movement.
+    * 2*: Moving against solid obstacles triggers a two-turn Wall Jump, moving
+      two tiles in the opposite direction and attacking any adjacent enemies.
+      This ability can also be triggered via an (a)bility, and the movement-
+      based mode can be disabled using `wall_jump_move = false` in your rc
+      file for more careful play.
+  - 3*: Active 'Serpent's Lash' ability, granting two free movement actions,
+    of which any martial actions will never miss.
+  - 5*: Active 'Heavenly Storm' ability, creating opaque clouds and increasing
+    your martial prowess while you continue to use 'martial' attacks.
+  - Piety is gained through defeating foes.
+* Gozag Potion Petition no longer offers haste/berserk potions for species
+  that can't haste/berserk.
+* Zin blocks 100% of mutations at 6* piety. At that piety level, potions of
+  mutation now only remove mutations and don't cause piety loss.
+* Zin no longer has a mutation removal one-time ability at 6* piety.
+* Makhleb's Minor Destruction has slightly lowered range, and Makhleb's Major
+  Destruction has slightly increased range.
+
+Interface
+---------
+* Players can now set training targets for skills.
+  - Press = on the skill screen, select a skill, and enter a skill level.
+  - Training of that skill is disabled when it reaches the specified level.
+* Water species except for merfolk autoexplore/travel through shallow water.
+* Diagonal shift-running now stops properly at doors.
+* Draconian players now show their hat tiles in Tiles/WebTiles.
+* New 'tc_forbidden' RC option to set color of squares forbidden by travel.
+* New xp_by_level morgue table to track XP sources on a per-level basis.
+* New -force-map objstat/mapstat option to always place a given map on each
+  level.
+* New objstat fields for tracking monster numbers/XP from vaults.
+* Many new tiles for artefact weapons and monsters.
+
+Items
+-----
+* Wands of the same type merge charges upon pickup and wands have no cap on
+  charges.
+* Wands identify charges upon pickup and are destroyed when their last charge
+  is used.
+* Items in a doorways no longer prevent closing doors in most instances.
+  - Items get pushed out of the doorway when the player closes the door.
+  - Doors refuse to close only if the items would fall into deep water or lava.
+* Potions of mutations remove fewer mutations on average and are a bit rarer.
+* Fan of Gales now disperses clouds at the user's location.
+* Un-equipping an item currently giving you invisibility now gives extra
+  contamination.
+* Rods of lightning XP-recharge even when only partially used and only grant a
+  power bonus for shots over consecutive turns.
+* Scarves are never made as artefacts.
+* Wands of random effects include malmutate in the set of possible effects.
+* Permanent food has been simplified.
+  - Rations are now the only type of permanent food, replacing bread and meat
+    rations, fruit, and royal jelly.
+  - Ration item generation and well as the herbivore and carnivore mutations
+    have been balanced to keep available nutrition the same as before.
+  - Fedhas abilities that formerly required a piece of fruit instead require
+    two rations.
+* Removed:
+  - Wands of confusion and lightning.
+  - Scrolls of recharging.
+  - Mutagenic chunks.
+
+Monsters
+--------
+* Monsters no longer spawn after level-generation in most places.
+  - This also eliminates the "super OOD" timer that could generate
+    exceptionally hard monsters after a long time on the level.
+  - The number of monsters created during level generation is increased
+    slightly to compensate.
+  - Pandemonium and Abyss are unaffected by this change.
+* A fraction of the monsters generated with a level are created awake,
+  but never near stairs.
+* Air elementals now have a Vortex ability, which creates a short-range,
+  short-duration tornado effect.
+* Player ghosts have normal speed regardless of species, never have a chaos
+  ego on their melee attack, and no longer generate in portal branches.
+* Pandemonium lords can no longer have the Shatter spell.
+
+Spells
+------
+* New spell: Borgnjor's Vile Clutch (L5 Necromancy/Earth); calls forth undead
+  hands from the earth over a smite-targeted area to constrict hostile monsters.
+  Appears in the Necromancer starting book, the book of Unlife, and the book of
+  Dreams.
+* Shatter's damage has been simplified to use one of three dice values for
+  susceptibility, and can now slightly damage insubstantial monsters. Intrinsic
+  player/monster susceptibility takes precedence for damage over flight status.
+* Lee's Rapid Deconstruction now gives each material type a fixed explosion
+  damage and size that doesn't increase when a wall is destroyed.
+* Removed:
+  - Control Undead.
+  - Cigotuvi's Embrace.
+
+Stone Soup 0.20 (20170525)
+--------------------------
+
+Highlights
+----------
+* New species: Barachim
+* New spells: Poisonous Vapours and Ignition
+* New scarf items: Armour for the cloak slot with new egos
+* New evocations: Wands and an evocable based on spells formerly found on rods
+
+Branches, Environment
+---------------------
+* The Slime Pits treasure vault walls are breached when the Royal Jelly dies.
+* Web traps created in play (by e.g. jumping spiders) are destroyed on
+  escape.
+* The Tomb of Ancients now has one-way escape hatches with return hatches
+  nearby instead of stairs.
+* New transporter dungeon feature: a one-way portal to elsewhere on the level.
+  Currently used in a number of new loot vaults.
+* The last levels of Cocytus and Gehenna never require flight to reach the
+  rune.
+
+Character
+---------
+* New species: Barachim, with an powerful innate Hop ability and good
+  aptitudes balanced by slow movement and an increased base LOS radius.
 * Ogre aptitudes have been adjusted, trading M&F skill for spells.
 * Mummies' spellcasting aptitude has been increased to +2, from -1.
 * Deep dwarves have an innate ability that heals them and has a chance of
   permanently reducing their MP. Their old recharge ability has been removed.
 * Loud noises no longer break mesmerization or fear.
 * Various 'badform' (e.g. wispform) special cases have been removed.
+* Several abilities that triggered exhaustion now have their own cooldown timers.
 * Removed:
   - High elves.
   - Mottled draconians.
+  - Vestigial Lava Orcs/Djinni. Saves will load, but (after a prompt) will be
+    converted to Hill Orcs/Vinestalkers.
 
 Gods
 ----
@@ -38,15 +173,38 @@ Gods
 
 Interface
 ---------
-* Monsters' melee attacks are now included in their descriptions.
+* The species selection menu has been reworked to have a more useful
+  conceptual organization, with species grouped into "simple", "intermediate",
+  and "advanced" categories.
+* Noise from the last turn is displayed in the top-right, replacing gold.
+  (Gold can still be seen with % and $.)
+* Terminal colors now work properly on a wider range of terminals by default.
+  However, as a consequence the default background map color is dark blue.
+  To get dark grey, depending on your terminal you can set
+  `bold_brightens_foreground=true` or `allow_extended_colours=true` in
+  your rc file.
+* New equip_bar option that replaces the noise display with a display of the
+  glyphs of your equipped items (console only).
+* Monsters' melee attacks, including estimates of potential damage, are
+  now included in their descriptions.
 * The player's odds of succeeding with melee confusion attacks is displayed.
 * auto_butcher can be configured to trigger on different hunger levels.
+* Stash searches now hide distant duplicate matches of more vanilla
+  weapons, armour, and ammo by default. Searches results are now first
+  ordered by items' descriptive names, rather than by the whole string
+  including determiners.
+* Red draining is now divided into red and magenta; magenta is the worst.
+* The mouse can be used in webtiles (now enabled by default, previously a
+  secret option).
+* Local versions have much-improved support for custom sounds; see
+  https://github.com/crawl/crawl/commit/4270d38ebf63 for details.
+* SDL Tiles now no longer disables screen savers.
 
 Items
 -----
 * New item type: scarves, occupying the cloak slot.
   - Scarves give 0 AC and cannot be enchanted, but always have an ego.
-  - Scarf egos: rC+, Spirit Shield, Resistance, rMsl.
+  - Scarf egos: Cloud Immunity, Spirit Shield, Resistance, rMsl.
 * Evocations:
   - New wand types: Clouds and Scattershot.
   - New misc item: the Lightning Rod, a 4-charge XP evocable.
@@ -56,16 +214,27 @@ Items
   - Wands of digging can now destroy statues.
   - Wand and miscellaneous acquirement merged into 'evocations'.
 * Unrandarts:
+  - New unrand: Maxwell's Thermic Engine, a freezing/flaming double sword that
+    increases in power with each swing taken.
+  - The Ratskin Cloak's stats have been tweaked, and it can now summon rats.
   - Amulet of Bloodlust: Slay+6 (was +3), MR++ (was MR+).
   - Shield of Ignorance: Now +10 {Int-4, rN+}. *Curse, AC+4 removed.
   - Sword of Jihad: renamed to Zealot's Sword.
   - Sceptre of Torment only torments on-hit, rather than randomly.
+  - The Captain's Cutlass no longer chops off hydra heads.
+  - The Ring of Shaolin is renamed to the Ring of Phasing, and the bow of Krishna
+    "Sharnga" is renamed to the longbow "Zephyr".
+* Potions of cure mutation, beneficial mutation, and mutation have been merged.
 * All types of food take one turn to eat.
+* All types of manuals are pre-identified.
+* Weapons:
+  - Giant Spiked Clubs have had their base delay lowered slightly.
 * Removed:
   - Wands of heal wounds, haste, teleportation, and slowing.
   - Rods.
   - Discs of Storms.
-  - The Hat of the High Council.
+  - The Hat of the High Council, the Scimitar of Flaming Death, and the Dagger
+    of Chilly Death.
   - Beef jerky and pizza.
 
 Monsters
@@ -75,6 +244,11 @@ Monsters
 * Two-headed ogres are significantly stronger.
 * The 'draining' effect once again lowers monsters' MR.
 * Various unique monsters give better rewards for defeating them.
+* Monsters such as alligators get a larger movement speed increase when using
+  their Sprint ability.
+* Maurice and Ijyb now always have wands, and Ijyb first appears a bit deeper
+  in the Dungeon.
+* Draconian ghosts will no longer have negative energy breath.
 * Removed:
   - Mottled draconians.
   - Draconian zealots.
@@ -84,8 +258,11 @@ Spells
 ------
 * New spell: Poisonous Vapours (L2 Poison/Air); creates an extremely short-
   duration poison cloud on a targeted creature. Appears in the VM book.
-* New spell: Ignition (L8 Fire). Drops a Fireball on every monster in line of
-  sight. The caster and their allies are unaffected.
+* New spell: Ignition (L8 Fire). Drops a weakened Fireball on every monster in
+  line of sight. The caster and their allies are unaffected.
+* Gell's Gravitas is now Translocations only (was Tloc/Hex).
+* Portal Projectile is now Tloc/Hex (was Translocations only).
+* Swapped Portal Projectile and Gell's Gravitas in the Wr/AM starting books.
 * Book of Conjurations: Battlesphere replaced with Force Lance.
 * Book of Air: Repel Missiles replaced with Airstrike.
 * Confusing Touch is less effective, especially against high-HD enemies.
@@ -95,6 +272,16 @@ Spells
     - Delayed Fireball.
     - Poisonous Cloud
     - Repel Missiles.
+
+Modding/contribution support
+----------------------------
+* A number of guides from contributor Cerol on how to change key components
+  of the game (first debuted in r/dcss and r/roguelikes) have been added to
+  the documentation. These can be found at:
+    - https://github.com/crawl/crawl/blob/master/crawl-ref/docs/develop/background_creation.txt
+    - https://github.com/crawl/crawl/blob/master/crawl-ref/docs/develop/god_creation.txt
+    - https://github.com/crawl/crawl/blob/master/crawl-ref/docs/develop/mutation_creation.txt
+    - https://github.com/crawl/crawl/blob/master/crawl-ref/docs/develop/species_creation.txt
 
 
 Stone Soup 0.19.1 (20161123)

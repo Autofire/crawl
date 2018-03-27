@@ -65,10 +65,6 @@ substantially weakening melee attacks.
 While tranformed, any equipped weapons, armour and rings are melded, and the
 user becomes unable to evoke wands or to cast spells.
 %%%%
-Spit Acid ability
-
-Spits acid at a targeted creature.
-%%%%
 Fly ability
 
 Starts flight. During flight you can safely cross water and similar obstacles.
@@ -82,14 +78,9 @@ anyone adjacent, and are not affected by any means of protection, such as armour
 or resistances. However, certain creatures, usually those able to invoke
 damnation themselves, are entirely unscathed by damnation.
 %%%%
-Release Delayed Fireball ability
+Cancel Portal Projectile ability
 
-Instantly releases a previously prepared (delayed) fireball without additional
-cost in terms of magic or hunger.
-%%%%
-Stop Singing ability
-
-Stops singing your Song of Slaying.
+Ends your Portal Projectile status.
 %%%%
 Heal Wounds ability
 
@@ -102,15 +93,14 @@ Allows making tunnels through soft rock and rusted grates. Activating the
 ability has no cost and simply prepares you to start digging; once active,
 moving into a wall will start tunneling. Doing so makes some noise and causes
 hunger, and is a little slower than walking.
+
+Once active, activating the ability again or making any non-digging movement
+action will cancel the Dig status.
 %%%%
 Shaft Self ability
 
 Sends you to a random position one to two floors down, as if you jumped into a
 shaft trap. It takes some time to dig the shaft.
-%%%%
-Evoke Teleportation ability
-
-Teleports the user to a random location on the level.
 %%%%
 Evoke Blink ability
 
@@ -125,10 +115,6 @@ Evoke Invisibility ability
 Turns the user invisible. Turning invisible causes magical contamination and
 may eventually cause glowing, nullifying the invisibility.
 %%%%
-Turn Visible ability
-
-Turns visible again.
-%%%%
 Evoke Flight ability
 
 <Fly ability>
@@ -141,6 +127,10 @@ Evoke Fog ability
 
 Releases a thick cloud of fog to obscure vision.
 %%%%
+Evoke Ratskin ability
+
+Summons up to two dungeon rats to serve their master for a brief time.
+%%%%
 End Transformation ability
 
 Reverts you to your normal form.
@@ -148,7 +138,8 @@ Reverts you to your normal form.
 # Zin
 Recite ability
 
-Preaches to nearby monsters about Zin's laws for a short duration.
+Preaches to nearby monsters about Zin's laws for a short duration. After
+finishing a recitation, it cannot be repeated for a short time.
 
 The recitation will have different effects depending on the target: the chaotic
 and unclean will be affected by powerful and damaging effects, undead and
@@ -323,20 +314,14 @@ Forget Spell ability
 Removes a known spell from memory, so as to free memory to learn others.
 %%%%
 # Trog
-Burn Spellbooks ability
-
-Sets all spellbooks within your field of vision on fire. The fire is fuelled by
-Trog's hatred, and it burns hotter than mere parchment would — which can be
-useful if you throw the book under someone's feet first. Trog greatly
-appreciates the burning of spellbooks.
-%%%%
 Berserk ability
 
 Sends the user into a berserk rage. Going berserk temporarily increases health,
 speed, and damage dealt in melee. It will time out quickly outside of combat,
 but may be extended by multiple kills. While berserk, almost all actions other
 than movement and melee combat are prevented. When the rage expires, the user
-will be briefly slowed and occasionally may even pass out.
+will be briefly slowed and occasionally may even pass out, and will be unable
+to berserk again for a short time.
 %%%%
 Trog's Hand ability
 
@@ -494,8 +479,8 @@ up completely, revealing the dungeon floor.
 %%%%
 Growth ability
 
-Uses fruit to grow a ring of plants around yourself. If a complete ring cannot
-be formed (because you do not have enough fruit), plants will grow on squares
+Uses food to grow a ring of plants around yourself. If a complete ring cannot
+be formed (because you do not have enough food), plants will grow on squares
 adjacent to you that are close to monsters. The plants you create gain bonus
 health proportional to your Invocations skill.
 %%%%
@@ -513,10 +498,11 @@ explode, causing damage to you or your enemies.
 %%%%
 Evolution ability
 
-Turns plants and fungi into stronger species. Upgrading fungi requires piety,
-while upgrading plants requires fruit. Upgraded plants gain a bonus to attack
+Turns plants and fungi into stronger species. Upgraded plants gain a bonus to attack
 accuracy proportional to the user's Invocations skill, and oklob plants are
 more likely to spit acid at higher Invocations.
+
+Upgrading fungi requires piety, while upgrading plants requires food.
 %%%%
 # Cheibriados
 Bend Time ability
@@ -546,12 +532,6 @@ while you're gone.
 Request Jelly ability
 
 Creates a neutral jelly that will wander the floor and digest items.
-%%%%
-Jelly Paralyse ability
-
-Calls on any nearby jellies to cease their item consumption and pray to Jiyva
-for a short duration, with a piety cost depending on the number of jellies that
-are affected.
 %%%%
 Slimify ability
 
@@ -638,18 +618,6 @@ Readies a device surge, which triggers on your next usage of a magical device
 to strengthen its power at the cost of some magic. The amount of magical power
 that can be used for a surge varies, but correlates with how devoted a follower
 is to Pakellas.
-%%%%
-Quick Charge ability
-
-Spends two thirds of your current pool of magic to charge a wand. The
-effectiveness of this depends on your current pool of magic and your
-Evocations skill.
-%%%%
-Supercharge ability
-
-Infuses magical energy into a wand. Its capacity is significantly increased
-beyond normal and fully charged to this new capacity. This ability may only be
-used once.
 %%%%
 # Qazlal
 Upheaval ability
@@ -787,9 +755,8 @@ Accepting a sacrifice will reset the timer to the standard length.
 Stomp ability
 
 Stomps down in time with the rhythm of the dance, sending a shockwave through
-all adjacent creatures. The shockwave deals damages the creatures it passes
-through in proportion to the creature's maximum health and the reveler's
-Invocations skill.
+all adjacent creatures. The shockwave damages each creature by a percentage of
+its maximum health, with the percentage increasing with Invocations skill.
 %%%%
 Line Pass ability
 
@@ -869,7 +836,26 @@ undone.
 Ancestor Identity ability
 
 Recalls who your ancestor preferred to be known as, correcting their name and
-gender. This does not take any time.
+gender.
+%%%%
+Wall Jump ability
+
+Vaults off an adjacent wall towards enemies, striking all enemies adjacent to
+the landing spot and taking two turns to complete the motion.
+%%%%
+Serpent's Lash ability
+
+Allows you to move at supernatural speeds, making any movements up to a
+distance of two tiles instantly. Martial attacks performed under the effect of
+Serpent's Lash are more damaging and never miss.
+%%%%
+Heavenly Storm ability
+
+Invokes a storm of heavenly clouds. While the storm rages, striking enemies
+with martial attacks provides an increasing bonus to melee damage and accuracy.
+The bonus fades over time, and the storm lasts until the bonus has faded
+completely. The heavenly clouds prevent invisibility, and obscure the vision of
+those outside the storm.
 %%%%
 Hop ability
 

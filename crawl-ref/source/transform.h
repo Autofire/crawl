@@ -3,8 +3,7 @@
  * @brief Misc function related to player transformations.
 **/
 
-#ifndef TRANSFOR_H
-#define TRANSFOR_H
+#pragma once
 
 #include <set>
 
@@ -269,17 +268,15 @@ bool form_can_wear(transformation form = you.form);
 bool form_can_fly(transformation form = you.form);
 bool form_can_swim(transformation form = you.form);
 bool form_likes_water(transformation form = you.form);
-bool form_likes_lava(transformation form = you.form);
 bool form_changed_physiology(transformation form = you.form);
 bool form_can_bleed(transformation form = you.form);
-bool form_can_use_wand(transformation form = you.form);
 // Does the form keep the benefits of resistance, scale, and aux mutations?
 bool form_keeps_mutations(transformation form = you.form);
 
 bool feat_dangerous_for_form(transformation which_trans,
                              dungeon_feature_type feat);
 
-bool check_form_stat_safety(transformation new_form);
+bool check_form_stat_safety(transformation new_form, bool quiet = false);
 
 bool transform(int pow, transformation which_trans,
                bool involuntary = false, bool just_check = false,
@@ -303,5 +300,3 @@ void emergency_untransform();
 void merfolk_check_swimming(bool stepped = false);
 void merfolk_start_swimming(bool step = false);
 void merfolk_stop_swimming();
-
-#endif

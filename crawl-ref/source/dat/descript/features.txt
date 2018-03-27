@@ -136,6 +136,11 @@ A glowing silver altar of Zin
 An altar to Zin the Law-Giver, made from silver as pristine as Zin's followers
 are expected to be, and glowing gently.
 %%%%
+An ornate altar of the Wu Jian Council
+
+An red and gold altar to the Wu Jian Council. Sharp slivers of steel drift
+through the quiet air surrounding it.
+%%%%
 ########################################################################
 ### Terrain
 ########################################################################
@@ -237,10 +242,6 @@ A stone staircase leading up
 
 A staircase leading back up.
 %%%%
-A short-range portal
-
-A portal that will send you to a nearby location.
-%%%%
 A tree
 
 A large tree. While in most places the dim light of the dungeon is not bright
@@ -341,6 +342,18 @@ A decorative fountain, flowing with brightly sparkling water.
 A broken pillar
 
 A ruined and crumbled stone pillar.
+%%%%
+A one-way staircase leading down
+
+A cursed staircase leading further down, imbued with magic to prevent any
+return back up the stairs. Adventurers taking this passage will need to find a
+return stairway somewhere else on the level where they arrive.
+%%%%
+A one-way staircase leading up
+
+A cursed staircase leading up, imbued with magic to prevent any return back
+down the stairs. Adventurers taking this passage will need to find a return
+stairway somewhere else on the level where they arrive.
 %%%%
 ########################################################################
 ### Branch entrances and exits
@@ -495,6 +508,16 @@ A staircase leading to the Tomb of the Ancients.
 A gate to the Vaults
 
 A gateway leading to the Vaults.
+%%%%
+A transporter
+
+A one-way portal to another place on this level. When using a transporter,
+adjacent allies and monsters will travel with you to the other side.
+%%%%
+A transporter landing site
+
+The destination site of a transporter. As the portal is one-way, you cannot use
+this location to return back through the transporter.
 %%%%
 ########################################################################
 ## Doors

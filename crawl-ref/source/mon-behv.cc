@@ -106,7 +106,7 @@ static bool _mon_tries_regain_los(monster* mon)
 // to ideal_range (too far = easier to escape, too close = easier to ambush).
 static void _set_firing_pos(monster* mon, coord_def target)
 {
-    const int ideal_range = LOS_RADIUS / 2;
+    const int ideal_range = LOS_DEFAULT_RANGE / 2;
     const int current_distance = mon->pos().distance_from(target);
 
     // We don't consider getting farther away unless already very close.
@@ -841,7 +841,8 @@ void handle_behaviour(monster* mon)
                     stop_retreat = true;
 
             }
-            else if (grid_distance(mon->pos(), you.pos()) > LOS_RADIUS + 2)
+            else if (grid_distance(mon->pos(), you.pos()) >
+                     LOS_DEFAULT_RANGE + 2)
             {
                 // We're too far from the player. Idle around and wait for
                 // them to catch up.
@@ -865,7 +866,7 @@ void handle_behaviour(monster* mon)
                 // idling (to prevent it from repeatedly resetting idle
                 // time if its own wanderings bring it closer to the player)
                 if (mon->props.exists("idle_point")
-                    && grid_distance(mon->pos(), you.pos()) < LOS_RADIUS)
+                    && grid_distance(mon->pos(), you.pos()) < LOS_DEFAULT_RANGE)
                 {
                     mon->props.erase("idle_point");
                     mon->props.erase("idle_deadline");
@@ -1046,6 +1047,9 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
     switch (event)
     {
     case ME_DISTURB:
+#ifdef DEBUG_NOISE_PROPAGATION
+        dprf("Disturbing %s", mon->name(DESC_A, true).c_str());
+#endif
         // Assumes disturbed by noise...
         if (mon->asleep())
         {
@@ -1145,6 +1149,9 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
         break;
 
     case ME_ALERT:
+#ifdef DEBUG_NOISE_PROPAGATION
+        dprf("Alerting %s", mon->name(DESC_A, true).c_str());
+#endif
         // Allow monsters falling asleep while patrolling (can happen if
         // they're left alone for a long time) to be woken by this event.
         if (mon->friendly() && mon->is_patrolling()
@@ -1316,6 +1323,9 @@ void behaviour_event(monster* mon, mon_event_type event, const actor *src,
     ASSERT_IN_BOUNDS_OR_ORIGIN(mon->target);
 
     // If it was unaware of you and you're its new foe, it might shout.
+#ifdef DEBUG_NOISE_PROPAGATION
+    dprf("%s could shout in behavioural event, allow_shout: %d, foe: %d", mon->name(DESC_A, true).c_str(), allow_shout, mon->foe);
+#endif
     if (was_unaware && allow_shout
         && mon->foe == MHITYOU && !mon->wont_attack())
     {
@@ -1458,7 +1468,7 @@ void make_mons_leave_level(monster* mon)
         // Pacified monsters leaving the level take their stuff with
         // them.
         mon->flags |= MF_HARD_RESET;
-        monster_die(mon, KILL_DISMISSED, NON_MONSTER);
+        monster_die(*mon, KILL_DISMISSED, NON_MONSTER);
     }
 }
 

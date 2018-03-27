@@ -45,8 +45,9 @@ static mgen_data _segment_data(const monster& head, coord_def pos,
                                monster_type type)
 {
     mgen_data mg(type, SAME_ATTITUDE((&head)), pos, head.foe, MG_FORCE_PLACE);
+    if (mons_is_zombified(head))
+        mg.base_type = head.type;
     mg.set_summoned(&head, 0, 0, head.god)
-      .set_prox(PROX_CLOSE_TO_PLAYER)
       .set_col(head.colour);
     return mg;
 }
@@ -635,7 +636,7 @@ static void _purge_connectors(monster* tentacle)
             if (hp > 0 && hp < tentacle->hit_points)
                 tentacle->hit_points = hp;
 
-            monster_die(*mi, KILL_MISC, NON_MONSTER, true);
+            monster_die(**mi, KILL_MISC, NON_MONSTER, true);
         }
     }
     ASSERT(tentacle->alive());
@@ -916,7 +917,7 @@ void move_solo_tentacle(monster* tentacle)
         if (constrictee->is_player())
             stop_delay(true);
     }
-    tentacle->clear_far_constrictions();
+    tentacle->clear_invalid_constrictions();
 
     tentacle_connect_constraints connect_costs;
     connect_costs.connection_constraints = &connection_data;
@@ -937,7 +938,7 @@ void move_solo_tentacle(monster* tentacle)
              old_pos.x, old_pos.y, tentacle->mid, visited_count);
 
         // Is it ok to purge the tentacle here?
-        monster_die(tentacle, KILL_MISC, NON_MONSTER, true);
+        monster_die(*tentacle, KILL_MISC, NON_MONSTER, true);
         return;
     }
 
@@ -1031,7 +1032,7 @@ void move_child_tentacles(monster* mons)
             // Drop the tentacle if no enemies are in sight and it is
             // adjacent to the main body. This is to prevent players from
             // just sniping tentacles while outside the kraken's fov.
-            monster_die(tentacle, KILL_MISC, NON_MONSTER, true);
+            monster_die(*tentacle, KILL_MISC, NON_MONSTER, true);
             continue;
         }
 
@@ -1111,7 +1112,7 @@ void move_child_tentacles(monster* mons)
             if (constrictee->is_player())
                 stop_delay(true);
         }
-        tentacle->clear_far_constrictions();
+        tentacle->clear_invalid_constrictions();
 
         connect_costs.connection_constraints = &connection_data;
         connect_costs.base_monster = tentacle;
@@ -1125,7 +1126,7 @@ void move_child_tentacles(monster* mons)
         if (!connected)
         {
             mgrd(tentacle->pos()) = tentacle->mindex();
-            monster_die(tentacle, KILL_MISC, NON_MONSTER, true);
+            monster_die(*tentacle, KILL_MISC, NON_MONSTER, true);
 
             continue;
         }
@@ -1168,14 +1169,14 @@ bool destroy_tentacle(monster* mons)
         {
             any = true;
             //mi->hurt(*mi, INSTANT_DEATH);
-            monster_die(*mi, KILL_MISC, NON_MONSTER, true);
+            monster_die(**mi, KILL_MISC, NON_MONSTER, true);
         }
     }
 
     if (mons != head)
     {
         any = true;
-        monster_die(head, KILL_MISC, NON_MONSTER, true);
+        monster_die(*head, KILL_MISC, NON_MONSTER, true);
     }
 
     return any;
@@ -1191,7 +1192,7 @@ bool destroy_tentacles(monster* head)
             any |= destroy_tentacle(*mi);
             if (!mi->is_child_tentacle_segment())
             {
-                monster_die(mi->as_monster(), KILL_MISC, NON_MONSTER, true);
+                monster_die(*mi->as_monster(), KILL_MISC, NON_MONSTER, true);
                 any = true;
             }
         }

@@ -322,6 +322,7 @@ ANGRY:   5
 BOOL:    berserk
 STEALTH: -1
 
+# TAG_MAJOR_VERSION == 34
 NAME:    scimitar of Flaming Death
 OBJ:     OBJ_WEAPONS/WPN_SCIMITAR
 INSCRIP: sticky flame,
@@ -332,7 +333,7 @@ TILE_EQ: flaming_death
 BRAND:   SPWPN_FLAMING
 FIRE:    2
 COLD:    -1
-BOOL:    poison, skip_ego
+BOOL:    poison, skip_ego, nogen
 MAGIC:   1
 
 # TAG_MAJOR_VERSION == 34
@@ -359,6 +360,7 @@ AC:      -3
 EV:      -3
 LIFE:     1
 
+# TAG_MAJOR_VERSION == 34
 NAME:    dagger of Chilly Death
 OBJ:     OBJ_WEAPONS/WPN_DAGGER
 INSCRIP: flash freeze,
@@ -370,7 +372,7 @@ BRAND:   SPWPN_FREEZING
 FIRE:    -1
 COLD:    2
 MAGIC:   1
-BOOL:    poison, skip_ego
+BOOL:    poison, skip_ego, nogen
 
 NAME:     dagger "Morg"
 OBJ:      OBJ_WEAPONS/WPN_DAGGER
@@ -400,13 +402,12 @@ TILE_EQ: punk
 BRAND:   SPWPN_ACID
 BOOL:    rCorr
 
-ENUM:     KRISHNA
-NAME:     bow of Krishna "Sharnga"
+NAME:     longbow "Zephyr"
 OBJ:      OBJ_WEAPONS/WPN_LONGBOW
 PLUS:     +8
 COLOUR:   ETC_GOLD
-TILE:     urand_krishna
-TILE_EQ:  krishna
+TILE:     urand_zephyr
+TILE_EQ:  zephyr
 BRAND:    SPWPN_SPEED
 DEX:      3
 BOOL:     seeinv
@@ -633,7 +634,8 @@ BOOL:     nogen
 
 ENUM:     CAPTAIN
 NAME:     captain's cutlass
-OBJ:      OBJ_WEAPONS/WPN_CUTLASS
+OBJ:      OBJ_WEAPONS/WPN_RAPIER
+TYPE:     cutlass
 INSCRIP:  disarm
 PLUS:     +7
 COLOUR:   DARKGREY
@@ -670,6 +672,7 @@ DEX:     4
 
 NAME:     cloak of the Thief
 OBJ:      OBJ_ARMOUR/ARM_CLOAK
+INSCRIP:  +Fog
 PLUS:     +2
 COLOUR:   ETC_DARK
 TILE:     urand_thief
@@ -825,7 +828,7 @@ MAGIC:    1
 BOOL:     seeinv
 VALUE:    600
 
-NAME:    armour of the Dragon King
+NAME:    scales of the Dragon King
 OBJ:     OBJ_ARMOUR/ARM_GOLD_DRAGON_ARMOUR
 PLUS:    +9
 COLOUR:  ETC_GOLD
@@ -873,8 +876,10 @@ PLUS:     +2
 COLOUR:   ETC_BEOGH
 TILE:     urand_ratskin_cloak
 TILE_EQ:  ratskin
+INSCRIP:  +Rats
+STR:      -1
 INT:      -1
-DEX:      -1
+DEX:      1
 LIFE:     1
 BOOL:     poison
 
@@ -906,7 +911,7 @@ VALUE:   400
 
 # TAG_MAJOR_VERSION == 34
 NAME:    amulet of Cekugob
-OBJ:     OBJ_JEWELLERY/AMU_DISMISSAL
+OBJ:     OBJ_JEWELLERY/AMU_ACROBAT
 COLOUR:  ETC_SILVER
 TILE:    urand_cekugob
 AC:      1
@@ -932,11 +937,11 @@ ANGRY:   5
 SLAY:    6
 BOOL:    curse
 
-NAME:    ring of Shaolin
+NAME:    ring of Phasing
 OBJ:     OBJ_JEWELLERY/RING_EVASION
 PLUS:    +8
 COLOUR:  ETC_POISON
-TILE:    urand_shaolin
+TILE:    urand_phasing
 
 NAME:    ring of Robustness
 OBJ:     OBJ_JEWELLERY/RING_PROTECTION
@@ -1288,6 +1293,18 @@ OBJ:      OBJ_JEWELLERY/AMU_NOTHING
 COLOUR:   WHITE
 TILE:     urand_cekugob
 BOOL:     inv, nogen
+
+ENUM:     THERMIC_ENGINE
+NAME:     Maxwell's thermic engine
+OBJ:      OBJ_WEAPONS/WPN_DOUBLE_SWORD
+INSCRIP:  freeze,
+PLUS:     +2
+COLOUR:   ETC_VEHUMET
+TILE:     urand_thermic_engine
+TILE_EQ:  thermic_engine
+BRAND:    SPWPN_FLAMING
+FIRE:     -1
+COLD:     -1
 
 # This entry must always be last.
 ENUM:   DUMMY2

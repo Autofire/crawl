@@ -41,6 +41,7 @@
 #include "spl-miscast.h"
 #include "state.h"
 #include "stringutil.h"
+#include "terrain.h"
 #include "unwind.h"
 #include "view.h"
 #include "viewmap.h"
@@ -176,10 +177,10 @@ void wizard_create_spec_monster_name()
         }
         ghost.job = static_cast<job_type>(job_id);
         ghost.xl = 7;
+        ghost.max_hp = 20;
+        ASSERT(debug_check_ghost(ghost));
 
         mon.set_ghost(ghost);
-
-        ghosts.push_back(ghost);
     }
 }
 
@@ -742,7 +743,10 @@ void wizard_give_monster_item(monster* mon)
 static void _move_player(const coord_def& where)
 {
     if (!you.can_pass_through_feat(grd(where)))
+    {
         grd(where) = DNGN_FLOOR;
+        set_terrain_changed(where);
+    }
     move_player_to_grid(where, false);
     // If necessary, update the Abyss.
     if (player_in_branch(BRANCH_ABYSS))
@@ -1188,9 +1192,9 @@ void debug_ghosts()
     const char c = toalower(getchm());
 
     if (c == 'c')
-        save_ghost(true);
+        save_ghosts(ghost_demon::find_ghosts(), true);
     else if (c == 'l')
-        load_ghost(false);
+        load_ghosts(ghost_demon::max_ghosts_per_level(env.absdepth0), false);
     else
         canned_msg(MSG_OK);
 }

@@ -1,5 +1,6 @@
-#ifndef TRAP_DEF_H
-#define TRAP_DEF_H
+#pragma once
+
+#include "trap-type.h"
 
 struct trap_def
 {
@@ -32,5 +33,3 @@ private:
     item_def generate_trap_item();
     int shot_damage(actor& act);
 };
-
-#endif

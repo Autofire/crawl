@@ -3,10 +3,10 @@
  * @brief Misc functions.
 **/
 
-#ifndef MISC_H
-#define MISC_H
+#pragma once
 
 #include "coord.h"
+#include "maybe-bool.h"
 
 #include <algorithm>
 #include <chrono>
@@ -25,6 +25,7 @@ unsigned int breakpoint_rank(int val, const int breakpoints[],
 
 bool tobool(maybe_bool mb, bool def);
 maybe_bool frombool(bool b);
+const string maybe_to_string(const maybe_bool mb);
 
 struct counted_monster_list
 {
@@ -37,4 +38,3 @@ struct counted_monster_list
     string describe(description_level_type desc = DESC_THE,
                     bool force_article = false);
 };
-#endif

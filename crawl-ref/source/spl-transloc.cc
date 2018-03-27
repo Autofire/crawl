@@ -22,6 +22,7 @@
 #include "english.h"
 #include "item-prop.h"
 #include "items.h"
+#include "level-state-type.h"
 #include "libutil.h"
 #include "los.h"
 #include "losglobal.h"
@@ -45,6 +46,7 @@
 #include "target.h"
 #include "teleport.h"
 #include "terrain.h"
+#include "tiledoll.h"
 #include "traps.h"
 #include "view.h"
 #include "viewmap.h"
@@ -249,6 +251,10 @@ void wizard_blink()
     direction_chooser_args args;
     args.restricts = DIR_TARGET;
     args.needs_path = false;
+    targeter_smite tgt(&you, LOS_RADIUS);
+    tgt.obeys_mesmerise = false;
+    args.hitfunc = &tgt;
+
     args.top_prompt = "Blink to where?";
     dist beam;
     direction(beam, args);
@@ -318,9 +324,10 @@ static coord_def _fuzz_hop_destination(coord_def target)
  */
 spret_type frog_hop(bool fail)
 {
-    const int hop_range = 3 + player_mutation_level(MUT_HOP); // 4-5
+    const int hop_range = 2 + you.get_mutation_level(MUT_HOP) * 2; // 4-6
     coord_def target;
     targeter_smite tgt(&you, hop_range, 0, HOP_FUZZ_RADIUS);
+    tgt.obeys_mesmerise = true;
     while (true)
     {
         if (!_find_cblink_target(target, true, "hop", &tgt))
@@ -371,7 +378,9 @@ spret_type frog_hop(bool fail)
 spret_type controlled_blink(bool fail, bool safe_cancel)
 {
     coord_def target;
-    if (!_find_cblink_target(target, safe_cancel, "blink"))
+    targeter_smite tgt(&you, LOS_RADIUS);
+    tgt.obeys_mesmerise = true;
+    if (!_find_cblink_target(target, safe_cancel, "blink", &tgt))
         return SPRET_ABORT;
 
     fail_check();
@@ -790,21 +799,13 @@ spret_type cast_apportation(int pow, bolt& beam, bool fail)
         return SPRET_ABORT;
     }
 
-    // Letting mostly-melee characters spam apport after every Shoals
-    // fight seems like it has too much grinding potential. We could
-    // weaken this for high power.
-    if (grd(where) == DNGN_DEEP_WATER || grd(where) == DNGN_LAVA)
-    {
-        mpr("The density of the terrain blocks your spell.");
-        return SPRET_ABORT;
-    }
-
     // Let's look at the top item in that square...
     // And don't allow apporting from shop inventories.
-    const int item_idx = igrd(where);
+    // Using visible_igrd takes care of deep water/lava where appropriate.
+    const int item_idx = you.visible_igrd(where);
     if (item_idx == NON_ITEM || !in_bounds(where))
     {
-        mpr("There are no items there.");
+        mpr("You don't see anything to apport there.");
         return SPRET_ABORT;
     }
 
@@ -864,8 +865,8 @@ spret_type cast_apportation(int pow, bolt& beam, bool fail)
     int dist = beam.path_taken.size();
 
     // The maximum number of squares the item will actually move, always
-    // at least one square. Always has a chance to move the full LOS_RADIUS,
-    // but only becomes certain at max power (50).
+    // at least one square. Always has a chance to move the entirety of default
+    // LOS (7), but only becomes certain at max power (50).
     int max_dist = max(1, min(LOS_RADIUS, random2(8) + div_rand_round(pow, 7)));
 
     dprf("Apport dist=%d, max_dist=%d", dist, max_dist);

@@ -1,8 +1,8 @@
 %%%%
-Barachian
+Barachi
 
-Barachians are amphibious humanoids with an exceptionally vicious disposition.
-They can hop long distances, though their movement is otherwise somewhat slow.
+Barachim are amphibious humanoids who rebelled against the gods. They're fast
+learners and can hop long distances, but are otherwise slow and easily seen.
 %%%%
 Centaur
 
@@ -52,6 +52,11 @@ Gargoyle
 
 Made of living stone, Gargoyles have a preternatural affinity for the earth.
 They have low health, but their stone bodies are incredibly tough.
+%%%%
+Gnoll
+
+Gnolls are canine-like humanoids. They have incredible proficiency and
+excellent physical attributes, but must learn all skills at once.
 %%%%
 Halfling
 
@@ -103,8 +108,8 @@ but almost no armour fits them.
 %%%%
 Ogre
 
-Large and strong, Ogres are mostly seen as brutes. They are extremely robust,
-and have an excellent grasp of magic.
+Large, strong, and extremely robust, Ogres are competent at all forms of melee.
+They are not merely brutes, as they are comfortable with spellcasting.
 %%%%
 Spriggan
 

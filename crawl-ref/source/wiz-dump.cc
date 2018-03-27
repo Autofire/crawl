@@ -17,6 +17,7 @@
 #include "env.h"
 #include "item-name.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "libutil.h"
 #include "makeitem.h"
@@ -81,6 +82,8 @@ static uint8_t _jewellery_type_from_artefact_prop(const string &s
         return AMU_FAITH;
     if (s == "Reflect")
         return AMU_REFLECTION;
+    if (s == "Acrobat")
+        return AMU_ACROBAT;
 
     if (s == "rCorr")
         return RING_RESIST_CORROSION;
@@ -473,8 +476,20 @@ bool chardump_parser::_check_char(const vector<string> &tokens)
                 race = tokens[k-3].substr(1) + " " + tokens[k-2];
             string role = tokens[k-1].substr(0, tokens[k-1].length() - 1);
 
-            wizard_change_species_to(find_species_from_string(race));
-            wizard_change_job_to(find_job_from_string(role));
+            const species_type sp = find_species_from_string(race);
+            if (sp == SP_UNKNOWN)
+            {
+                mprf("Unknown species: %s", race.c_str());
+                return false;
+            }
+            const job_type job = find_job_from_string(role);
+            if (job == JOB_UNKNOWN)
+            {
+                mprf("Unknown job: %s", role.c_str());
+                return false;
+            }
+            change_species_to(sp);
+            wizard_change_job_to(job);
             return true;
         }
     }

@@ -3,12 +3,12 @@
  * @brief Gametime related functions.
 **/
 
-#ifndef TIME_H
-#define TIME_H
+#pragma once
 
 void change_labyrinth(bool msg = false);
 
 void update_level(int elapsedTime);
+monster* update_monster(monster& mon, int turns);
 void handle_time();
 
 void timeout_tombs(int duration);
@@ -23,5 +23,3 @@ void setup_environment_effects();
 // Lava smokes, swamp water mists.
 void run_environment_effects();
 int speed_to_duration(int speed);
-
-#endif

@@ -38,6 +38,7 @@
 #include "item-prop.h"
 #include "items.h"
 #include "item-use.h"
+#include "item-status-flag-type.h"
 #include "libutil.h"
 #include "macro.h"
 #include "message.h"
@@ -831,6 +832,16 @@ void PasswallDelay::finish()
     }
     else
         move_player_to_grid(dest, false);
+
+    // the last phase of the delay is a fake (0-time) turn, so world_reacts
+    // and player_reacts aren't triggered. Need to do a tiny bit of cleanup.
+    // This isn't very elegant, and perhaps a version of player_reacts that is
+    // triggered by changing location would be better (per Pleasingfungus),
+    // but player_reacts is very sensitive to order and can't be easily
+    // refactored in this way.
+    search_around();
+    you.update_beholders();
+    you.update_fearmongers();
 }
 
 void ShaftSelfDelay::finish()
@@ -1222,8 +1233,8 @@ static inline bool _monster_warning(activity_interrupt_type ai,
                 }
             }
         }
-        if (player_mutation_level(MUT_SCREAM)
-            && x_chance_in_y(3 + player_mutation_level(MUT_SCREAM) * 3, 100))
+        if (you.has_mutation(MUT_SCREAM)
+            && x_chance_in_y(3 + you.get_mutation_level(MUT_SCREAM) * 3, 100))
         {
             yell(mon);
         }

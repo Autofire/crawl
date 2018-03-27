@@ -18,6 +18,7 @@
 #include "hints.h"
 #include "item-name.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "item-use.h"
 #include "libutil.h"
@@ -269,6 +270,31 @@ static void _equip_artefact_effect(item_def &item, bool *show_msgs, bool unmeld,
 #undef unknown_proprt
 }
 
+/**
+ * If player removes evocable invis and we need to clean things up, set
+ * remaining Invis duration to 1 AUT and give the player contam equal to the
+ * amount the player would receive if they waited the invis out.
+ */
+static void _unequip_invis()
+{
+    if (you.duration[DUR_INVIS] > 1
+        && you.evokable_invis() == 0
+        && !you.attribute[ATTR_INVIS_UNCANCELLABLE])
+    {
+
+        // scale up contam by 120% just to ensure that ending invis early is
+        // worse than just resting it off.
+        mpr("You absorb a burst of magical contamination as your invisibility "
+             "abruptly ends!");
+        const int invis_duration_left = you.duration[DUR_INVIS] * 120 / 100;
+        const int remaining_contam = div_rand_round(
+            invis_duration_left * INVIS_CONTAM_PER_TURN, BASELINE_DELAY
+        );
+        contaminate_player(remaining_contam, true);
+        you.duration[DUR_INVIS] = 0;
+    }
+}
+
 static void _unequip_artefact_effect(item_def &item,
                                      bool *show_msgs, bool meld,
                                      equipment_type slot)
@@ -306,13 +332,8 @@ static void _unequip_artefact_effect(item_def &item,
         land_player();
     }
 
-    if (proprt[ARTP_INVISIBLE] != 0
-        && you.duration[DUR_INVIS] > 1
-        && !you.attribute[ATTR_INVIS_UNCANCELLABLE]
-        && !you.evokable_invis())
-    {
-        you.duration[DUR_INVIS] = 1;
-    }
+    if (proprt[ARTP_INVISIBLE] != 0)
+        _unequip_invis();
 
     if (proprt[ARTP_MAGICAL_POWER])
         calc_mp();
@@ -750,9 +771,9 @@ static void _spirit_shield_message(bool unmeld)
             mpr("Now linked to your health, your magic stops regenerating.");
         }
     }
-    else if (!unmeld && player_mutation_level(MUT_MANA_SHIELD))
+    else if (!unmeld && you.get_mutation_level(MUT_MANA_SHIELD))
         mpr("You feel the presence of a powerless spirit.");
-    else // unmeld or already spirit-shielded
+    else if (!you.get_mutation_level(MUT_MANA_SHIELD))
         mpr("You feel spirits watching over you.");
 }
 
@@ -812,7 +833,7 @@ static void _equip_armour_effect(item_def& arm, bool unmeld,
         case SPARM_FLYING:
             // If you weren't flying when you took off the boots, don't restart.
             if (you.attribute[ATTR_LAST_FLIGHT_STATUS]
-                || player_mutation_level(MUT_NO_ARTIFICE))
+                || you.has_mutation(MUT_NO_ARTIFICE))
             {
                 if (you.airborne())
                 {
@@ -825,9 +846,9 @@ static void _equip_armour_effect(item_def& arm, bool unmeld,
                     float_player();
                 }
             }
-            if (!unmeld && !player_mutation_level(MUT_NO_ARTIFICE))
+            if (!unmeld && !you.has_mutation(MUT_NO_ARTIFICE))
             {
-                if (player_mutation_level(MUT_NO_ARTIFICE))
+                if (you.has_mutation(MUT_NO_ARTIFICE))
                     mpr("Take it off to stop flying.");
                 else
                 {
@@ -849,7 +870,7 @@ static void _equip_armour_effect(item_def& arm, bool unmeld,
             break;
 
         case SPARM_STEALTH:
-            if (!player_mutation_level(MUT_NO_STEALTH))
+            if (!you.get_mutation_level(MUT_NO_STEALTH))
                 mpr("You feel stealthy.");
             break;
 
@@ -878,6 +899,10 @@ static void _equip_armour_effect(item_def& arm, bool unmeld,
 
         case SPARM_REPULSION:
             mpr("You are surrounded by a repulsion field.");
+            break;
+
+        case SPARM_CLOUD_IMMUNE:
+            mpr("You feel immune to the effects of clouds.");
             break;
         }
     }
@@ -973,12 +998,7 @@ static void _unequip_armour_effect(item_def& item, bool meld,
         break;
 
     case SPARM_INVISIBILITY:
-        if (you.duration[DUR_INVIS]
-            && !you.attribute[ATTR_INVIS_UNCANCELLABLE]
-            && !you.evokable_invis())
-        {
-            you.duration[DUR_INVIS] = 1;
-        }
+        _unequip_invis();
         break;
 
     case SPARM_STRENGTH:
@@ -1014,7 +1034,7 @@ static void _unequip_armour_effect(item_def& item, bool meld,
         break;
 
     case SPARM_STEALTH:
-        if (!player_mutation_level(MUT_NO_STEALTH))
+        if (!you.get_mutation_level(MUT_NO_STEALTH))
             mpr("You feel less stealthy.");
         break;
 
@@ -1045,6 +1065,10 @@ static void _unequip_armour_effect(item_def& item, bool meld,
 
     case SPARM_REPULSION:
         mpr("The haze of the repulsion field disappears.");
+        break;
+
+    case SPARM_CLOUD_IMMUNE:
+        mpr("You feel vulnerable to the effects of clouds.");
         break;
 
     default:
@@ -1100,7 +1124,7 @@ static void _remove_amulet_of_harm()
 
 static void _equip_amulet_of_regeneration()
 {
-    if (player_mutation_level(MUT_SLOW_REGENERATION) == 3)
+    if (you.get_mutation_level(MUT_NO_REGENERATION) > 0)
         mpr("The amulet feels cold and inert.");
     else if (you.hp == you.hp_max)
     {
@@ -1112,6 +1136,20 @@ static void _equip_amulet_of_regeneration()
         mpr("You sense that the amulet cannot attune itself to your injured"
             " body.");
         you.props[REGEN_AMULET_ACTIVE] = 0;
+    }
+}
+
+static void _equip_amulet_of_the_acrobat()
+{
+    if (you.hp == you.hp_max)
+    {
+        you.props[ACROBAT_AMULET_ACTIVE] = 1;
+        mpr("You feel ready to tumble and roll out of harm's way.");
+    }
+    else
+    {
+        mpr("Your injuries prevent the amulet from attuning itself.");
+        you.props[ACROBAT_AMULET_ACTIVE] = 0;
     }
 }
 
@@ -1217,6 +1255,11 @@ static void _equip_jewellery_effect(item_def &item, bool unmeld,
     case AMU_REGENERATION:
         if (!unmeld)
             _equip_amulet_of_regeneration();
+        break;
+
+    case AMU_ACROBAT:
+        if (!unmeld)
+            _equip_amulet_of_the_acrobat();
         break;
 
     case AMU_MANA_REGENERATION:
@@ -1360,13 +1403,6 @@ bool unwield_item(bool showMsgs)
 {
     if (!you.weapon())
         return false;
-
-    if (you.berserk())
-    {
-        if (showMsgs)
-            canned_msg(MSG_TOO_BERSERK);
-        return false;
-    }
 
     item_def& item = *you.weapon();
 

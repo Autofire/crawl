@@ -20,6 +20,7 @@
 #include "food.h"
 #include "invent.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "item-use.h"
 #include "l-defs.h"
@@ -414,9 +415,15 @@ static int l_item_do_stacks(lua_State *ls)
         const bool any_stack =
             is_stackable_item(*first)
             && any_of(begin(you.inv), end(you.inv),
-                      [&] (const item_def &item) -> bool
+                      [first] (const item_def &item) -> bool
                       {
                           return items_stack(*first, item);
+                      })
+         || first->base_type == OBJ_WANDS
+            && any_of(begin(you.inv), end(you.inv),
+                      [first] (const item_def &item) -> bool
+                      {
+                          return item.is_type(OBJ_WANDS, first->sub_type);
                       });
         lua_pushboolean(ls, any_stack);
     }
@@ -1225,12 +1232,13 @@ static int l_item_get_items_at(lua_State *ls)
     s.x = luaL_checkint(ls, 1);
     s.y = luaL_checkint(ls, 2);
     coord_def p = player2grid(s);
-    if (!map_bounds(p))
-        return 0;
 
-    item_def* top = env.map_knowledge(p).item();
-    if (!top || !top->defined())
+    if (!query_map_knowledge(false, p, [](const map_cell& cell) {
+          return cell.item() && cell.item()->defined();
+        }))
+    {
         return 0;
+    }
 
     lua_newtable(ls);
 

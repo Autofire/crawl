@@ -37,6 +37,7 @@
 #include "tiledef-main.h"
 #include "tilefont.h"
 #include "tilepick.h"
+#include "tiles-build-specific.h"
 #include "traps.h"
 #include "travel.h"
 #include "viewgeom.h"
@@ -106,6 +107,10 @@ void DungeonRegion::pack_buffers()
 
     if (m_vbuf.empty())
         return;
+
+    coord_def m_vbuf_sz = m_vbuf.size();
+    ASSERT(m_vbuf_sz.x == crawl_view.viewsz.x);
+    ASSERT(m_vbuf_sz.y == crawl_view.viewsz.y);
 
     screen_cell_t *vbuf_cell = m_vbuf;
     for (int y = 0; y < crawl_view.viewsz.y; ++y)
@@ -187,9 +192,11 @@ void DungeonRegion::render()
     }
 
     set_transform();
+    glmanager->set_scissor(0, 0, tile_iw, tile_ih);
     m_buf_dngn.draw();
     draw_minibars();
     m_buf_flash.draw();
+    glmanager->reset_scissor();
 
     FixedArray<tag_def, ENV_SHOW_DIAMETER, ENV_SHOW_DIAMETER> tag_show;
 
@@ -354,6 +361,11 @@ void DungeonRegion::on_resize()
     // TODO enne
 }
 
+bool DungeonRegion::inside(int x, int y)
+{
+    return x >= 0 && y >= 0 && x <= tile_iw && y <= tile_ih;
+}
+
 // FIXME: If the player is targeted, the game asks the player to target
 // something with the mouse, then targets the player anyway and treats
 // mouse click as if it hadn't come during targeting (moves the player
@@ -394,23 +406,9 @@ static bool _is_appropriate_spell(spell_type spell, const actor* target)
     const unsigned int flags    = get_spell_flags(spell);
     const bool         targeted = flags & SPFLAG_TARGETING_MASK;
 
-    // Most spells are blocked by transparent walls.
-    // XXX: deduplicate this with the other two? smitey spell lists
+    // All spells are blocked by transparent walls.
     if (targeted && !you.see_cell_no_trans(target->pos()))
-    {
-        switch (spell)
-        {
-        case SPELL_CALL_DOWN_DAMNATION:
-        case SPELL_SMITING:
-        case SPELL_HAUNT:
-        case SPELL_FIRE_STORM:
-        case SPELL_AIRSTRIKE:
-            break;
-
-        default:
-            return false;
-        }
-    }
+        return false;
 
     const bool helpful = flags & SPFLAG_HELPFUL;
 
@@ -437,7 +435,7 @@ static bool _is_appropriate_spell(spell_type spell, const actor* target)
 static bool _is_appropriate_evokable(const item_def& item,
                                      const actor* target)
 {
-    if (!item_is_evokable(item, false, false, true))
+    if (!item_is_evokable(item, false))
         return false;
 
     // Only wands for now.
@@ -510,12 +508,13 @@ static bool _evoke_item_on_target(actor* target)
 
     if (item == nullptr)
         return false;
-
+#if TAG_MAJOR_VERSION == 34
     if (is_known_empty_wand(*item))
     {
         mpr("That wand is empty.");
         return false;
     }
+#endif
 
     macro_buf_add_cmd(CMD_EVOKE);
     macro_buf_add(index_to_letter(item->link)); // Inventory letter.
@@ -630,9 +629,9 @@ static bool _can_fire_item()
 
 static bool _handle_distant_monster(monster* mon, unsigned char mod)
 {
-    const bool shift = (mod & MOD_SHIFT);
-    const bool ctrl  = (mod & MOD_CTRL);
-    const bool alt   = (shift && ctrl || (mod & MOD_ALT));
+    const bool shift = (mod & TILES_MOD_SHIFT);
+    const bool ctrl  = (mod & TILES_MOD_CTRL);
+    const bool alt   = (shift && ctrl || (mod & TILES_MOD_ALT));
     const item_def* weapon = you.weapon();
 
     // Handle evoking items at monster.
@@ -671,9 +670,9 @@ static bool _handle_distant_monster(monster* mon, unsigned char mod)
 
 static bool _handle_zap_player(MouseEvent &event)
 {
-    const bool shift = (event.mod & MOD_SHIFT);
-    const bool ctrl  = (event.mod & MOD_CTRL);
-    const bool alt   = (shift && ctrl || (event.mod & MOD_ALT));
+    const bool shift = (event.mod & TILES_MOD_SHIFT);
+    const bool ctrl  = (event.mod & TILES_MOD_CTRL);
+    const bool alt   = (shift && ctrl || (event.mod & TILES_MOD_ALT));
 
     if (alt && _have_appropriate_evokable(&you))
         return _evoke_item_on_target(&you);
@@ -728,12 +727,8 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
         return 0;
 
 #ifdef TOUCH_UI
-    if (event.event == MouseEvent::PRESS
-        && (event.mod & MOD_CTRL)
-        && (event.button == MouseEvent::SCROLL_UP || event.button == MouseEvent::SCROLL_DOWN))
-    {
+    if (event.event == MouseEvent::WHEEL && (event.mod & TILES_MOD_CTRL))
         zoom(event.button == MouseEvent::SCROLL_UP);
-    }
 #endif
 
     if (mouse_control::current_mode() == MOUSE_MODE_NORMAL
@@ -750,8 +745,7 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
         return CK_MOUSE_CLICK;
     }
 
-    if (mouse_control::current_mode() == MOUSE_MODE_NORMAL
-        || mouse_control::current_mode() == MOUSE_MODE_MACRO
+    if (mouse_control::current_mode() == MOUSE_MODE_MACRO
         || mouse_control::current_mode() == MOUSE_MODE_MORE
         || mouse_control::current_mode() == MOUSE_MODE_PROMPT
         || mouse_control::current_mode() == MOUSE_MODE_YESNO)
@@ -790,6 +784,9 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
             tiles.add_text_tag(TAG_CELL_DESC, desc, gc);
     }
 
+    if (mouse_control::current_mode() == MOUSE_MODE_NORMAL)
+        return 0;
+
     if (!on_map)
         return 0;
 
@@ -820,14 +817,17 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
         {
         case MouseEvent::LEFT:
         {
-            if ((event.mod & (MOD_CTRL | MOD_ALT)))
+            if ((event.mod & (TILES_MOD_CTRL | TILES_MOD_ALT)))
             {
-                if (_handle_zap_player(event))
-                    return 0;
+                _handle_zap_player(event);
+                // return either way -- everything else in this case
+                // needs non-ctrl (and we definitely don't want to
+                // trigger a wait in the next if)
+                return 0;
             }
 
             // if there's an item, pick it up, otherwise wait 1 turn
-            if (!(event.mod & MOD_SHIFT))
+            if (!(event.mod & TILES_MOD_SHIFT))
             {
                 const int o = you.visible_igrd(you.pos());
                 if (o == NON_ITEM)
@@ -871,7 +871,7 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
             }
         }
         case MouseEvent::RIGHT:
-            if (!(event.mod & MOD_SHIFT))
+            if (!(event.mod & TILES_MOD_SHIFT))
                 return command_to_key(CMD_RESISTS_SCREEN); // Character overview.
             if (!you_worship(GOD_NO_GOD))
                 return command_to_key(CMD_DISPLAY_RELIGION); // Religion screen.
@@ -885,8 +885,13 @@ int DungeonRegion::handle_mouse(MouseEvent &event)
     // else not on player...
     if (event.button == MouseEvent::RIGHT)
     {
-        full_describe_square(gc);
-        return CK_MOUSE_CMD;
+        if (map_bounds(gc) && env.map_knowledge(gc).known())
+        {
+            full_describe_square(gc);
+            return CK_MOUSE_CMD;
+        }
+        else
+            return 0;
     }
 
     if (event.button != MouseEvent::LEFT)
@@ -904,9 +909,9 @@ int tile_click_cell(const coord_def &gc, unsigned char mod)
             return CK_MOUSE_CMD;
     }
 
-    if ((mod & MOD_CTRL) && adjacent(you.pos(), gc))
+    if ((mod & TILES_MOD_CTRL) && adjacent(you.pos(), gc))
     {
-        const int cmd = click_travel(gc, mod & MOD_CTRL);
+        const int cmd = click_travel(gc, mod & TILES_MOD_CTRL);
         if (cmd != CK_MOUSE_CMD)
             process_command((command_type) cmd);
 
@@ -915,10 +920,10 @@ int tile_click_cell(const coord_def &gc, unsigned char mod)
 
     // Don't move if we've tried to fire/cast/evoke when there's nothing
     // available.
-    if (mod & (MOD_SHIFT | MOD_CTRL | MOD_ALT))
+    if (mod & (TILES_MOD_SHIFT | TILES_MOD_CTRL | TILES_MOD_ALT))
         return CK_MOUSE_CMD;
 
-    const int cmd = click_travel(gc, mod & MOD_CTRL);
+    const int cmd = click_travel(gc, mod & TILES_MOD_CTRL);
     if (cmd != CK_MOUSE_CMD)
         process_command((command_type) cmd);
 
@@ -989,10 +994,10 @@ bool DungeonRegion::update_tip_text(string &tip)
 
     if (m_cursor[CURSOR_MOUSE] == NO_CURSOR)
         return false;
-    if (!map_bounds(m_cursor[CURSOR_MOUSE]))
+    const coord_def gc = m_cursor[CURSOR_MOUSE];
+    if (!map_bounds(gc) || !crawl_view.in_viewport_g(gc))
         return false;
 
-    const coord_def gc = m_cursor[CURSOR_MOUSE];
     bool ret = (tile_dungeon_tip(gc, tip));
 
 #ifdef WIZARD

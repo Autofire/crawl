@@ -295,7 +295,7 @@ static peeve_map divine_peeves[] =
             " forgives your inadvertent attack on a neutral, just this once."
         } },
         { DID_ATTACK_IN_SANCTUARY, {
-            "you attack monters in a sanctuary", false,
+            "you attack monsters in a sanctuary", false,
             1, 1
         } },
         { DID_UNCLEAN, {
@@ -468,6 +468,8 @@ static peeve_map divine_peeves[] =
     peeve_map(),
     // GOD_HEPLIAKLQANA,
     peeve_map(),
+    // GOD_WU_JIAN,
+    peeve_map(),
 };
 
 string get_god_dislikes(god_type which_god)
@@ -482,6 +484,15 @@ string get_god_dislikes(god_type which_god)
 
     for (const auto& entry : divine_peeves[which_god])
     {
+        // Trog forgives Gnolls practising spellcasting since they do it
+        // without choice. XXX: Rework the peeve_map to allow checking this.
+        if (which_god == GOD_TROG
+            && you.species == SP_GNOLL
+            && entry.first == DID_SPELL_PRACTISE)
+        {
+            continue;
+        }
+
         if (entry.second.desc)
         {
             if (entry.second.really_dislike)
@@ -615,7 +626,7 @@ static like_response _on_kill(const char* desc, mon_holy_type holiness,
                               special_piety_t special = nullptr,
                               bool really_like = false)
 {
-    like_response response = {
+    return {
         desc,
         really_like,
         _piety_bonus_for_holiness(holiness),
@@ -624,7 +635,6 @@ static like_response _on_kill(const char* desc, mon_holy_type holiness,
         " accepts your kill.",
         special
     };
-    return response;
 }
 
 /// Response for gods that like killing the living.
@@ -977,9 +987,17 @@ static like_map divine_likes[] =
             }
         } },
     },
-    // GOD_HEPLIAKLQANA,
+    // GOD_HEPLIAKLQANA
     {
         { DID_EXPLORATION, EXPLORE_RESPONSE },
+    },
+    // GOD_WU_JIAN
+    {
+        { DID_KILL_LIVING, KILL_LIVING_RESPONSE },
+        { DID_KILL_UNDEAD, KILL_UNDEAD_RESPONSE },
+        { DID_KILL_DEMON, KILL_DEMON_RESPONSE },
+        { DID_KILL_HOLY, KILL_HOLY_RESPONSE },
+        { DID_KILL_NONLIVING, KILL_NONLIVING_RESPONSE },
     },
 };
 
@@ -995,13 +1013,22 @@ static bool _god_likes_killing(const monster& victim)
 static void _handle_your_gods_response(conduct_type thing_done, int level,
                                        bool known, const monster* victim)
 {
+    COMPILE_CHECK(ARRAYSZ(divine_peeves) == NUM_GODS);
+    COMPILE_CHECK(ARRAYSZ(divine_likes) == NUM_GODS);
+
     // Lucy gives no piety in Abyss. :(
     // XXX: make this not a hack...? (or remove it?)
     if (you_worship(GOD_LUGONU) && player_in_branch(BRANCH_ABYSS))
         return;
 
-    COMPILE_CHECK(ARRAYSZ(divine_peeves) == NUM_GODS);
-    COMPILE_CHECK(ARRAYSZ(divine_likes) == NUM_GODS);
+    // Trog forgives Gnolls practising spellcasting since they do it without
+    // choice. XXX: Rework the peeve_map to allow checking this.
+    if (you_worship(GOD_TROG)
+        && you.species == SP_GNOLL
+        && thing_done == DID_SPELL_PRACTISE)
+    {
+        return;
+    }
 
     // If your god disliked the action, evaluate its response.
     if (auto peeve = map_find(divine_peeves[you.religion], thing_done))
@@ -1093,9 +1120,6 @@ string get_god_likes(god_type which_god)
     // Unique/unusual piety gain methods first.
     switch (which_god)
     {
-    case GOD_TROG:
-        likes.emplace_back("you destroy spellbooks via the <w>a</w> command");
-        break;
     case GOD_JIYVA:
         likes.emplace_back("you sacrifice items by allowing slimes to consume "
                            "them");
@@ -1156,6 +1180,14 @@ string get_god_likes(god_type which_god)
 bool god_hates_cannibalism(god_type god)
 {
     return divine_peeves[god].count(DID_CANNIBALISM);
+}
+
+conduct_type god_hates_item_handling(const item_def& item)
+{
+    for (conduct_type conduct : item_conducts(item))
+        if (divine_peeves[you.religion].count(conduct))
+            return conduct;
+    return DID_NOTHING;
 }
 
 /**

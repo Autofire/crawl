@@ -3,10 +3,10 @@
  * @brief Traps related functions.
 **/
 
-#ifndef TRAPS_H
-#define TRAPS_H
+#pragma once
 
 #include "enum.h"
+#include "trap-type.h"
 
 #define NEWLY_TRAPPED_KEY "newly_trapped"
 
@@ -50,5 +50,3 @@ bool ensnare(actor *fly);
 void leave_web(bool quiet = false);
 void monster_web_cleanup(const monster &mons, bool quiet = false);
 void stop_being_held();
-
-#endif

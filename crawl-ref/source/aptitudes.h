@@ -1,5 +1,4 @@
-#ifndef APTITUDES_H
-#define APTITUDES_H
+#pragma once
 
 #include "enum.h"
 
@@ -361,9 +360,9 @@ static const species_skill_aptitude species_skill_aptitudes[] =
 
     // SP_OGRE
     APT(SP_OGRE,            SK_FIGHTING,        3),
-    APT(SP_OGRE,            SK_SHORT_BLADES,   -3),
-    APT(SP_OGRE,            SK_LONG_BLADES,    -3),
-    APT(SP_OGRE,            SK_AXES,           -3),
+    APT(SP_OGRE,            SK_SHORT_BLADES,   -1),
+    APT(SP_OGRE,            SK_LONG_BLADES,    -1),
+    APT(SP_OGRE,            SK_AXES,            0),
     APT(SP_OGRE,            SK_MACES_FLAILS,   -1),
     APT(SP_OGRE,            SK_POLEARMS,        0),
     APT(SP_OGRE,            SK_STAVES,          0),
@@ -1333,6 +1332,9 @@ static const species_skill_aptitude species_skill_aptitudes[] =
     APT(SP_OCTOPODE,        SK_EVOCATIONS,      1),
 
 #if TAG_MAJOR_VERSION == 34
+    // It seems that we need to keep this as long as SP_DJINNI/SP_LAVAORC
+    // (which  are needed for loading old Djinni saves) is still around.
+
     // SP_DJINNI
     APT(SP_DJINNI,          SK_FIGHTING,       -1),
     APT(SP_DJINNI,          SK_SHORT_BLADES,   -2),
@@ -1482,45 +1484,82 @@ static const species_skill_aptitude species_skill_aptitudes[] =
     APT(SP_VINE_STALKER,    SK_INVOCATIONS,     0),
     APT(SP_VINE_STALKER,    SK_EVOCATIONS,     -1),
 
-    // SP_BARACHIAN
-    APT(SP_BARACHIAN,           SK_FIGHTING,        1),
-    APT(SP_BARACHIAN,           SK_SHORT_BLADES,    0),
-    APT(SP_BARACHIAN,           SK_LONG_BLADES,     1),
-    APT(SP_BARACHIAN,           SK_AXES,            0),
-    APT(SP_BARACHIAN,           SK_MACES_FLAILS,    0),
-    APT(SP_BARACHIAN,           SK_POLEARMS,       -1),
-    APT(SP_BARACHIAN,           SK_STAVES,          0),
-    APT(SP_BARACHIAN,           SK_SLINGS,         -1),
-    APT(SP_BARACHIAN,           SK_BOWS,           -1),
-    APT(SP_BARACHIAN,           SK_CROSSBOWS,      -1),
-    APT(SP_BARACHIAN,           SK_THROWING,       -1),
-    APT(SP_BARACHIAN,           SK_ARMOUR,          1),
-    APT(SP_BARACHIAN,           SK_DODGING,         0),
-    APT(SP_BARACHIAN,           SK_STEALTH,         1),
+    // SP_BARACHI
+    APT(SP_BARACHI,             SK_FIGHTING,        2),
+    APT(SP_BARACHI,             SK_SHORT_BLADES,    1),
+    APT(SP_BARACHI,             SK_LONG_BLADES,     2),
+    APT(SP_BARACHI,             SK_AXES,            1),
+    APT(SP_BARACHI,             SK_MACES_FLAILS,    1),
+    APT(SP_BARACHI,             SK_POLEARMS,        0),
+    APT(SP_BARACHI,             SK_STAVES,          1),
+    APT(SP_BARACHI,             SK_SLINGS,          0),
+    APT(SP_BARACHI,             SK_BOWS,            0),
+    APT(SP_BARACHI,             SK_CROSSBOWS,       0),
+    APT(SP_BARACHI,             SK_THROWING,        0),
+    APT(SP_BARACHI,             SK_ARMOUR,          2),
+    APT(SP_BARACHI,             SK_DODGING,         1),
+    APT(SP_BARACHI,             SK_STEALTH,         0),
 #if TAG_MAJOR_VERSION == 34
-    APT(SP_BARACHIAN,           SK_STABBING,      UNUSABLE_SKILL),
+    APT(SP_BARACHI,             SK_STABBING,      UNUSABLE_SKILL),
 #endif
-    APT(SP_BARACHIAN,           SK_SHIELDS,         0),
+    APT(SP_BARACHI,             SK_SHIELDS,         1),
 #if TAG_MAJOR_VERSION == 34
-    APT(SP_BARACHIAN,           SK_TRAPS,         UNUSABLE_SKILL),
+    APT(SP_BARACHI,             SK_TRAPS,         UNUSABLE_SKILL),
 #endif
-    APT(SP_BARACHIAN,           SK_UNARMED_COMBAT,  0),
-    APT(SP_BARACHIAN,           SK_SPELLCASTING,   -1),
-    APT(SP_BARACHIAN,           SK_CONJURATIONS,    0),
-    APT(SP_BARACHIAN,           SK_HEXES,           0),
-    APT(SP_BARACHIAN,           SK_CHARMS,          0),
-    APT(SP_BARACHIAN,           SK_SUMMONINGS,      1),
-    APT(SP_BARACHIAN,           SK_NECROMANCY,     -1),
-    APT(SP_BARACHIAN,           SK_TRANSLOCATIONS,  0),
-    APT(SP_BARACHIAN,           SK_TRANSMUTATIONS,  0),
-    APT(SP_BARACHIAN,           SK_FIRE_MAGIC,      0),
-    APT(SP_BARACHIAN,           SK_ICE_MAGIC,       1),
-    APT(SP_BARACHIAN,           SK_AIR_MAGIC,       0),
-    APT(SP_BARACHIAN,           SK_EARTH_MAGIC,    -1),
-    APT(SP_BARACHIAN,           SK_POISON_MAGIC,    0),
-    APT(SP_BARACHIAN,           SK_INVOCATIONS,     1),
-    APT(SP_BARACHIAN,           SK_EVOCATIONS,      0),
+    APT(SP_BARACHI,             SK_UNARMED_COMBAT,  1),
+    APT(SP_BARACHI,             SK_SPELLCASTING,    0),
+    APT(SP_BARACHI,             SK_CONJURATIONS,    1),
+    APT(SP_BARACHI,             SK_HEXES,           1),
+    APT(SP_BARACHI,             SK_CHARMS,          1),
+    APT(SP_BARACHI,             SK_SUMMONINGS,      2),
+    APT(SP_BARACHI,             SK_NECROMANCY,     -1),
+    APT(SP_BARACHI,             SK_TRANSLOCATIONS,  1),
+    APT(SP_BARACHI,             SK_TRANSMUTATIONS,  1),
+    APT(SP_BARACHI,             SK_FIRE_MAGIC,      1),
+    APT(SP_BARACHI,             SK_ICE_MAGIC,       2),
+    APT(SP_BARACHI,             SK_AIR_MAGIC,       1),
+    APT(SP_BARACHI,             SK_EARTH_MAGIC,     0),
+    APT(SP_BARACHI,             SK_POISON_MAGIC,    1),
+    APT(SP_BARACHI,             SK_INVOCATIONS,    -1),
+    APT(SP_BARACHI,             SK_EVOCATIONS,      1),
+
+    // SP_GNOLL
+    APT(SP_GNOLL,           SK_FIGHTING,        8),
+    APT(SP_GNOLL,           SK_SHORT_BLADES,    8),
+    APT(SP_GNOLL,           SK_LONG_BLADES,     8),
+    APT(SP_GNOLL,           SK_AXES,            8),
+    APT(SP_GNOLL,           SK_MACES_FLAILS,    8),
+    APT(SP_GNOLL,           SK_POLEARMS,        8),
+    APT(SP_GNOLL,           SK_STAVES,          8),
+    APT(SP_GNOLL,           SK_SLINGS,          8),
+    APT(SP_GNOLL,           SK_BOWS,            8),
+    APT(SP_GNOLL,           SK_CROSSBOWS,       8),
+    APT(SP_GNOLL,           SK_THROWING,        8),
+    APT(SP_GNOLL,           SK_ARMOUR,          8),
+    APT(SP_GNOLL,           SK_DODGING,         8),
+    APT(SP_GNOLL,           SK_STEALTH,         8),
+#if TAG_MAJOR_VERSION == 34
+    APT(SP_GNOLL,           SK_STABBING,      UNUSABLE_SKILL),
+#endif
+    APT(SP_GNOLL,           SK_SHIELDS,         8),
+#if TAG_MAJOR_VERSION == 34
+    APT(SP_GNOLL,           SK_TRAPS,         UNUSABLE_SKILL),
+#endif
+    APT(SP_GNOLL,           SK_UNARMED_COMBAT,  8),
+    APT(SP_GNOLL,           SK_SPELLCASTING,    8),
+    APT(SP_GNOLL,           SK_CONJURATIONS,    6),
+    APT(SP_GNOLL,           SK_HEXES,           6),
+    APT(SP_GNOLL,           SK_CHARMS,          6),
+    APT(SP_GNOLL,           SK_SUMMONINGS,      6),
+    APT(SP_GNOLL,           SK_NECROMANCY,      6),
+    APT(SP_GNOLL,           SK_TRANSLOCATIONS,  6),
+    APT(SP_GNOLL,           SK_TRANSMUTATIONS,  6),
+    APT(SP_GNOLL,           SK_FIRE_MAGIC,      6),
+    APT(SP_GNOLL,           SK_ICE_MAGIC,       6),
+    APT(SP_GNOLL,           SK_AIR_MAGIC,       6),
+    APT(SP_GNOLL,           SK_EARTH_MAGIC,     6),
+    APT(SP_GNOLL,           SK_POISON_MAGIC,    6),
+    APT(SP_GNOLL,           SK_INVOCATIONS,     9),
+    APT(SP_GNOLL,           SK_EVOCATIONS,      8),
 };
 COMPILE_CHECK(ARRAYSZ(species_skill_aptitudes) == NUM_SPECIES * NUM_SKILLS);
-
-#endif

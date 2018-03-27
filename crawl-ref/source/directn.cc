@@ -31,6 +31,7 @@
 #include "hints.h"
 #include "invent.h"
 #include "item-prop.h"
+#include "item-status-flag-type.h"
 #include "items.h"
 #include "libutil.h"
 #include "losglobal.h"
@@ -506,14 +507,14 @@ direction_chooser::direction_chooser(dist& moves_,
     mode(args.mode),
     range(args.range),
     just_looking(args.just_looking),
-    needs_path(args.needs_path),
     self(args.self),
     target_prefix(args.target_prefix),
     top_prompt(args.top_prompt),
     behaviour(args.behaviour),
     show_floor_desc(args.show_floor_desc),
     hitfunc(args.hitfunc),
-    default_place(args.default_place)
+    default_place(args.default_place),
+    needs_path(args.needs_path)
 {
     if (!behaviour)
         behaviour = &stock_behaviour;
@@ -625,13 +626,6 @@ void full_describe_view()
     desc_menu.action_cycle = Menu::CYCLE_TOGGLE;
     desc_menu.menu_action  = InvMenu::ACT_EXECUTE;
 
-    // Don't make a menu so tall that we recycle hotkeys on the same page.
-    if (list_mons.size() + list_items.size() + list_features.size() > 52
-        && (desc_menu.maxpagesize() > 52 || desc_menu.maxpagesize() == 0))
-    {
-        desc_menu.set_maxpagesize(52);
-    }
-
     // Start with hotkey 'a' and count from there.
     menu_letter hotkey;
     // Build menu entries for monsters.
@@ -673,7 +667,7 @@ void full_describe_view()
             for (unsigned int j = 0; j < fss.size(); ++j)
             {
                 if (j == 0)
-                    me = new MonsterMenuEntry(prefix+str, &mi, hotkey++);
+                    me = new MonsterMenuEntry(prefix + fss[j].tostring(), &mi, hotkey++);
 #ifndef USE_TILE_LOCAL
                 else
                 {
@@ -729,7 +723,7 @@ void full_describe_view()
             desc += "</" + colour_str +">) ";
 #endif
             desc += feature_description_at(c, false, DESC_A, false);
-            if (is_unknown_stair(c))
+            if (is_unknown_stair(c) || is_unknown_transporter(c))
                 desc += " (not visited)";
             FeatureMenuEntry *me = new FeatureMenuEntry(desc, c, hotkey);
             me->tag        = "description";
@@ -746,22 +740,17 @@ void full_describe_view()
     // (Maybe that should be reversed in the case of monsters.)
     // For ASCII, the 'x' information may include short database descriptions.
 
-    // Menu loop
-    vector<MenuEntry*> sel;
-    while (true)
+    coord_def target(-1, -1);
+
+    desc_menu.on_single_selection = [&desc_menu, &target](const MenuEntry& sel)
     {
-        sel = desc_menu.show();
-        redraw_screen();
-
-        if (sel.empty())
-            break;
-
+        target = coord_def(-1, -1);
         // HACK: quantity == 1: monsters, quantity == 2: items
-        const int quant = sel[0]->quantity;
+        const int quant = sel.quantity;
         if (quant == 1)
         {
             // Get selected monster.
-            monster_info* m = static_cast<monster_info* >(sel[0]->data);
+            monster_info* m = static_cast<monster_info* >(sel.data);
 
 #ifdef USE_TILE
             // Highlight selected monster on the screen.
@@ -780,22 +769,16 @@ void full_describe_view()
                 clear_messages();
             }
             else // ACT_EXECUTE -> view/travel
-            {
-                do_look_around(m->pos);
-                break;
-            }
+                target = m->pos;
         }
         else if (quant == 2)
         {
             // Get selected item.
-            item_def* i = static_cast<item_def*>(sel[0]->data);
+            item_def* i = static_cast<item_def*>(sel.data);
             if (desc_menu.menu_action == InvMenu::ACT_EXAMINE)
                 describe_item(*i);
             else // ACT_EXECUTE -> view/travel
-            {
-                do_look_around(i->pos);
-                break;
-            }
+                target = i->pos;
         }
         else
         {
@@ -807,12 +790,17 @@ void full_describe_view()
             if (desc_menu.menu_action == InvMenu::ACT_EXAMINE)
                 describe_feature_wide(c);
             else // ACT_EXECUTE -> view/travel
-            {
-                do_look_around(c);
-                break;
-            }
+                target = c;
         }
-    }
+        return desc_menu.menu_action == InvMenu::ACT_EXAMINE;
+    };
+    desc_menu.show();
+    redraw_screen();
+
+    // need to do this after the menu has been closed on console,
+    // since do_look_around() runs its own loop
+    if (target != coord_def(-1, -1))
+        do_look_around(target);
 
 #ifndef USE_TILE_LOCAL
     if (!list_items.empty())
@@ -1038,6 +1026,8 @@ bool direction_chooser::find_default_monster_target(coord_def& result) const
     {
         // Special colouring in tutorial or hints mode.
         const bool need_hint = Hints.hints_events[HINT_TARGET_NO_FOE];
+        // TODO: this seems to trigger when there are no monsters in range
+        // of the hitfunc, regardless of what's in the way, and it shouldn't.
         mprf(need_hint ? MSGCH_TUTORIAL : MSGCH_PROMPT,
             "All monsters which could be auto-targeted are covered by "
             "a wall or statue which interrupts your line of fire, even "
@@ -1243,7 +1233,7 @@ void direction_chooser::monster_cycle(int dir)
 void direction_chooser::feature_cycle_forward(int feature)
 {
     if (_find_square_wrapper(objfind_pos, 1,
-                             [feature, this](const coord_def& where)
+                             [feature](const coord_def& where)
                              {
                                  return map_bounds(where)
                                         && (you.see_cell(where)
@@ -1713,7 +1703,11 @@ void direction_chooser::handle_wizard_command(command_type key_command,
     case CMD_TARGET_WIZARD_PATHFIND:      debug_pathfind(mid);      break;
     case CMD_TARGET_WIZARD_DEBUG_MONSTER: debug_stethoscope(mid);   break;
     case CMD_TARGET_WIZARD_MAKE_SHOUT: debug_make_monster_shout(m); break;
-    case CMD_TARGET_WIZARD_MAKE_FRIENDLY: _wizard_make_friendly(m); break;
+    case CMD_TARGET_WIZARD_MAKE_FRIENDLY:
+        _wizard_make_friendly(m);
+        need_text_redraw = true;
+        break;
+
     case CMD_TARGET_WIZARD_GIVE_ITEM:  wizard_give_monster_item(m); break;
     case CMD_TARGET_WIZARD_POLYMORPH:  wizard_polymorph_monster(m); break;
 
@@ -1748,7 +1742,7 @@ void direction_chooser::handle_wizard_command(command_type key_command,
         break;
 
     case CMD_TARGET_WIZARD_KILL_MONSTER:
-        monster_die(m, KILL_YOU, NON_MONSTER);
+        monster_die(*m, KILL_YOU, NON_MONSTER);
         break;
 
     default:
@@ -1848,7 +1842,14 @@ bool direction_chooser::do_main_loop()
     reinitialize_move_flags();
 
     const coord_def old_target = target();
-    const command_type key_command = behaviour->get_command();
+    const int key = behaviour->get_key();
+    if (key == CK_REDRAW)
+    {
+        redraw_screen(false);
+        return false;
+    }
+
+    const command_type key_command = behaviour->get_command(key);
     behaviour->update_top_prompt(&top_prompt);
     bool loop_done = false;
 
@@ -3043,7 +3044,7 @@ static vector<string> _get_monster_desc_vector(const monster_info& mi)
     if (you.duration[DUR_CONFUSING_TOUCH] && !you.weapon()
         || you.form == transformation::fungus && !mons_is_unbreathing(mi.type))
     {
-        descs.emplace_back(make_stringf("confuse odds on hit: %d%%",
+        descs.emplace_back(make_stringf("chance to confuse on hit: %d%%",
                                         melee_confuse_chance(mi.hd)));
     }
 
@@ -3104,7 +3105,10 @@ static string _get_monster_desc(const monster_info& mi)
         text += pronoun + " is clinging to the wall.\n";
 
     if (mi.is(MB_MESMERIZING))
-        text += "You are mesmerised by her song.\n";
+    {
+        text += string("You are mesmerised by ")
+              + mi.pronoun(PRONOUN_POSSESSIVE) + " song.\n";
+    }
 
     if (mi.is(MB_SLEEPING) || mi.is(MB_DORMANT))
     {
@@ -3176,8 +3180,8 @@ static string _get_monster_desc(const monster_info& mi)
     }
 
     text += _mon_enchantments_string(mi);
-    if (!text.empty() && text[text.size() - 1] == '\n')
-        text = text.substr(0, text.size() - 1);
+    if (!text.empty() && text.back() == '\n')
+        text.pop_back();
     return text;
 }
 
@@ -3598,7 +3602,7 @@ int targeting_behaviour::get_key()
     flush_prev_message();
     msgwin_got_input();
     return unmangle_direction_keys(getchm(KMC_TARGETING), KMC_TARGETING,
-                                   false, false);
+                                   false);
 }
 
 command_type targeting_behaviour::get_command(int key)

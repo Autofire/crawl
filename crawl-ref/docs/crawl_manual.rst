@@ -234,9 +234,15 @@ Place
   branch. The starting branch is called Dungeon, so that the place information
   will read "Dungeon:1" for a new character.
 
-Gold
-  Displays the number of gold pieces you have found. Gold is found scattered
-  around the dungeon, and is primarily used to buy items from shops.
+Noise
+  This is a colored bar indicating the loudness of noise that you heard on your
+  last turn. The color provides a rough guide to how far away the noise it
+  indicates might be audible. If the bar is gray, the sound is less likely to
+  be audible outside of your line of sight (at least in an open area); if it is
+  yellow, the sound is likely to be audible outside of your line of sight; and
+  if it is red, the sound will be audible at a substantial distance. If the bar
+  turns magenta, you have made one of the loudest noises in the dungeon. N.b.:
+  terrain can reduce or block the spread of noise.
 
 Time
   This indicates the amount of time that has passed since entering the dungeon,
@@ -258,6 +264,19 @@ Magic Resistance
   deeper in the dungeon are better at casting spells, and are more likely to be
   able to affect you. You can get a rough idea of your current MR by pressing
   '@' or '%'.
+
+Size
+  Different species have different sizes: Spriggans and Felids are very small;
+  Halflings and Kobolds are small; Ogres and Trolls are large; Nagas and Centaurs
+  are large with a medium torso; all other species are medium-sized. Many
+  transmutations will change your size too. Size affects your evasion: the
+  smaller your character the more evasive it is. On the other hand, characters
+  of larger than medium size do not suffer the usual attack penalties when
+  standing in shallow water. Characters of smaller than medium size will have
+  problems with some larger weapons. Very small characters and large characters
+  are not able to use most types of armour. Players and monsters can only
+  constrict foes of the same size or smaller. In the dungeon you can also meet
+  tiny, very large and giant creatures.
 
 Stealth
   High stealth allows your character to move through the dungeon undetected.
@@ -361,8 +380,8 @@ a direction, will open/close doors, too.
 
 If there is no door in the indicated space, both Ctrl-direction and
 '*'-direction will attempt to attack any monster which may be standing there
-(this is the only way to attack a friendly creature hand-to-hand). If there is
-apparently nothing there, you will still attack it, just in case there's
+(this is the only way to attack a friendly creature with melee combat). If there
+is apparently nothing there, you will still attack it, just in case there's
 something invisible lurking around.
 
 A variety of dangerous and irritating traps are hidden around the dungeon. Traps
@@ -615,8 +634,8 @@ adventures, how they are displayed, and what commands there are to use them:
 /        wands          (use 'V' to evoke)
 =        rings          (use 'P'ut on and 'R'emove)
 "        amulets        (use 'P'ut on and 'R'emove)
-\\ or |  staves, rods   (use 'w'ield for staves; 'v' for evoking rods)
-\+ or :  spellbooks     (use 'r'ead and 'M'emorise and 'z'ap)
+\\ or |   staves, rods   (use 'w'ield for staves; 'v' for evoking rods)
+\+ or :   spellbooks     (use 'r'ead and 'M'emorise and 'z'ap)
 }        miscellaneous  (use 'V' for evoking from the inventory)
 $        gold           (use 'g' to pick up)
 =======  =============  ================================================
@@ -868,7 +887,7 @@ You can press '"' to quickly check what jewellery you're wearing.
 There are a number of types of magical staves. Some enhance your general
 spellcasting ability, while some greatly increase the power of a certain class
 of spells (and possibly reduce your effectiveness with others). Some can even be
-used in hand-to-hand combat, although with mediocre effectiveness unless you can
+used in melee combat, although with mediocre effectiveness unless you can
 harness their special power, using a combination of the Evocations skill and the
 skill specific to the staff's type. Staves which do not enhance a destructive
 magic school tend to have no combat powers at all.
@@ -1078,9 +1097,9 @@ can be controlled. Many mutations are actually beneficial to your character, but
 there are plenty of nasty ones as well. Many mutations have multiple levels,
 each of which counts as a single mutation.
 
-You can also become mutated by overusing certain powerful enchantments,
-particularly 'Haste' and 'Invisibility', as your system absorbs too much magical
-energy. A single use of those effects will never cause dangerous levels of magical
+You can also become mutated by overusing certain powerful spells, particularly
+'Invisibility' and 'Irradiate', as your system absorbs too much magical energy.
+A single use of those effects will never cause dangerous levels of magical
 contamination, but multiple uses in short succession, or usage with existing
 contamination from other sources (e.g. from miscasting spells) can cause trouble.
 Mutations from magical contamination are almost always harmful.
@@ -1381,10 +1400,9 @@ turns up, like a dragon on the second dungeon level. These are not bugs!
 Actually, they are part of the randomness design goal. In this case, they also
 serve as additional motivation: in many situations, the OOD monster can be
 survived somehow, and the mental bond with the character will then surely grow.
-OOD monsters also help to keep players on their toes by making shallow, or
-cleared, levels still not trivial. In a similar vein, early trips to the Abyss
-are not deficits: there's more than one way out, and successfully escaping is
-exciting for anyone.
+OOD monsters also help to keep players on their toes by making shallow levels
+still not trivial. In a similar vein, early trips to the Abyss are not deficits:
+there's more than one way out, and successfully escaping is exciting for anyone.
 
 ########################################
 Appendices
@@ -1509,14 +1527,14 @@ Centaurs
 
 Ogres
   Ogres are huge, chunky creatures who are very strong and robust, but are not
-  nimble at all. Ogres mature almost as quickly as Humans. They possess a raw
-  talent for magic, but are poor at making use of magical devices.
+  nimble at all. They possess a raw talent for magic, but are poor at making
+  use of magical devices. Ogres mature almost as quickly as Humans.
 
   Their preferred methods of avoiding beatings are dodging and the use of
-  shields. Many Ogres find it natural to wield some large and blunt weapon.
-  (Countless lethal incidents have taught them to leave most edged weapons be.)
-  While all sophisticated forms of missile combat are too awkward for them, they
-  are good at throwing things, in particular boulders.
+  shields, but they can also use armours made from magical hides, since these
+  accommodate their large frames. Ogres are proficient at using all types of
+  melee weapons, yet all sophisticated forms of missile combat are too awkward
+  for them. They are, however, good at throwing things, in particular boulders.
 
 Trolls
   Trolls are monstrous creatures with powerful claws. They have thick, knobbly
@@ -1602,7 +1620,7 @@ Deep Elves
    underground. There, they developed their mental powers, evolving a natural
    gift for all forms of magic (including necromancy and earth magic), and
    adapted physically to their new environment, becoming shorter, weaker, and
-   losing all colouration. They are poor at hand-to-hand combat, but excellent
+   losing all colouration. They are poor at melee combat, but excellent
    at fighting from a distance.
 
 Felids
@@ -1624,15 +1642,16 @@ Felids
   Felids gain extra lives as they increase in levels. Upon death, they will be
   resurrected in a safe place, losing an experience level in the process.
 
-Barachians
-  Barachians are an amphibious humanoid race, said to be distantly related to
-  the Elves. Spawned in great numbers beneath the southern ice, their
-  Mother-Father sends them forth to destroy and pillage the civilized lands.
+Barachim
+  Barachim are an amphibious humanoid race, spawned at the dawn of time as
+  servants for the gods. Inevitably, they rebelled and fled into the mortal
+  world; but even uncounted years later, the darkness still flees at their
+  approach, remembering those who they once served.
 
-  Barachians' most remarkable trait is their grossly overmuscled legs, which
-  allow them to leap remarkable distances. When not leaping, they are somewhat
-  slow-moving and their attributes are poor, but they do have considerable
-  flexibility in skill choice.
+  Barachim's most remarkable trait is their grossly overmuscled legs, which
+  allow them to leap great distances. When not leaping, they are somewhat
+  slow-moving, and the long sight-lines that their heritage creates can be a
+  major disadvantage, but they can master almost any skill.
 
 Octopodes
   These land-capable relatives of common octopuses can move about as fast as
@@ -1668,7 +1687,7 @@ Formicids
   and magical sides. Their abilities have been used to tunnel immense underground
   communities and structures, many of which are tens of thousands of years old.
 
-  Perhaps unfortunately, their strong ties to to earth have left them completely
+  Perhaps unfortunately, their strong ties to earth have left them completely
   impervious to being teleported or hasted; Formicids are tied to the earth with
   a complete sense of stasis. While this is a seemingly bad property for a
   dungeon adventurer, stasis has the beneficial effect of preventing many types
@@ -1702,6 +1721,25 @@ Vine Stalkers
   magic quite competently and then switching to a hybrid style when their
   reserves start to run low, thus replenishing their shroud of magic and their
   spells' fuel with each voracious bite.
+
+Gnolls
+  Gnolls are a race of caniform humanoids originally hailing from the arid
+  deserts and grasslands of the east. In recent history they have become
+  unusually attracted to the Dungeon, establishing tribes around and even
+  inside of it. Unfortunately their long stay in the Dungeon has exposed their
+  somewhat fragile minds to excessive amounts of its magic.
+
+  On the one hand, their bizarrely altered brains now have incredible
+  proficiency at learning every skill. On the other, these same alterations
+  have rendered Gnolls incapable of selective learning. They learn all skills
+  equally at the same time, so it's hard for them to learn more about any one
+  thing.
+
+  In order to survive with this limitation, Gnolls use their universal
+  knowledge and excellent physical attributes of strength, intelligence, and
+  dexterity to take advantage of every resource they find in the Dungeon. They
+  also have powerful noses adapted to the Dungeon's scents, allowing them to
+  easily locate where treasures lay hidden.
 
 The Undead
 ========================================
@@ -1834,9 +1872,8 @@ Gladiators
 Monks
   The Monk is a member of an ascetic order dedicated to the perfection of one's
   body and soul through the discipline of the martial arts. Monks start with
-  very little equipment, but can survive without the weighty weapons and
-  spellbooks needed by characters of other backgrounds. When they choose a god
-  for the first time, their spiritual training gives them a piety boost.
+  only a simple weapon and a robe. When they choose a god for the first time,
+  their spiritual training gives them a piety boost.
 
 Berserkers
   Berserkers are hardy warriors who worship Trog the Wrathful, from whom they
@@ -1964,7 +2001,7 @@ help menu using '?%', and during character choice with '%'.
 Fighting skills
 ========================================
 
-Fighting is the basic skill used in ranged and hand-to-hand combat, and applies no matter
+Fighting is the basic skill used in ranged and melee combat, and applies no matter
 which weapon your character is wielding (if any). Fighting is also the skill
 that determines the number of hit points your character gets as they increase in
 levels (note that this is calculated so that you don't get a long run advantage

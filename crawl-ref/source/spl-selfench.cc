@@ -85,109 +85,6 @@ spret_type ice_armour(int pow, bool fail)
     return SPRET_SUCCESS;
 }
 
-/**
- * Iterate over all corpses in LOS and harvest them (unless it's just a test
- * run)
- *
- * @param harvester   The entity planning to do the harvesting.
- * @param dry_run     Whether this is a test run & no corpses should be
- *                    actually destroyed.
- * @param defy_god    Whether to ignore religious restrictions on defiling
- *                    corpses.
- * @return            The total number of corpses (available to be) destroyed.
- */
-int harvest_corpses(const actor &harvester, bool dry_run, bool defy_god)
-{
-    int harvested = 0;
-
-    for (radius_iterator ri(harvester.pos(), LOS_NO_TRANS); ri; ++ri)
-    {
-        for (stack_iterator si(*ri, true); si; ++si)
-        {
-            item_def &item = *si;
-            if (item.base_type != OBJ_CORPSES)
-                continue;
-
-            // forbid harvesting orcs under Beogh
-            if (you.religion == GOD_BEOGH && !defy_god)
-            {
-                const monster_type monnum
-                    = static_cast<monster_type>(item.orig_monnum);
-                if (mons_genus(monnum) == MONS_ORC)
-                    continue;
-            }
-
-            ++harvested;
-
-            if (dry_run)
-                continue;
-
-            // don't spam animations
-            if (harvested <= 5)
-            {
-                bolt beam;
-                beam.source = *ri;
-                beam.target = harvester.pos();
-                beam.glyph = get_item_glyph(item).ch;
-                beam.colour = item.get_colour();
-                beam.range = LOS_RADIUS;
-                beam.aimed_at_spot = true;
-                beam.item = &item;
-                beam.flavour = BEAM_VISUAL;
-                beam.draw_delay = 3;
-                beam.fire();
-                viewwindow();
-            }
-
-            destroy_item(item.index());
-        }
-    }
-
-    return harvested;
-}
-
-/**
- * Casts the player spell "Cigotuvi's Embrace", pulling all corpses into LOS
- * around the caster to serve as armour.
- *
- * @param pow   The spellpower at which the spell is being cast.
- * @param fail  Whether the casting failed.
- * @return      SPRET_ABORT if you already have an incompatible buff running,
- *              SPRET_FAIL if fail is true, and SPRET_SUCCESS otherwise.
- */
-spret_type corpse_armour(int pow, bool fail)
-{
-    // Could check carefully to see if it's even possible that there are any
-    // valid corpses/skeletons in LOS (any piles with stuff under them, etc)
-    // before failing, but it's better to be simple + predictable from the
-    // player's perspective.
-    fail_check();
-
-    const int harvested = harvest_corpses(you);
-    dprf("Harvested: %d", harvested);
-
-    if (!harvested)
-    {
-        if (harvest_corpses(you, true, true))
-            mpr("It would be a sin to defile those corpses!");
-        else
-            canned_msg(MSG_NOTHING_HAPPENS);
-        return SPRET_SUCCESS; // still takes a turn, etc
-    }
-
-    if (you.attribute[ATTR_BONE_ARMOUR] <= 0)
-        mpr("The bodies of the dead rush to embrace you!");
-    else
-        mpr("Your shell of carrion and bone grows thicker.");
-
-    // value of ATTR_BONE_ARMOUR will be sqrt(9*harvested), rounded randomly
-    int squared = sqr(you.attribute[ATTR_BONE_ARMOUR]) + 9 * harvested;
-    you.attribute[ATTR_BONE_ARMOUR] = sqrt(squared) + random_real();
-    you.redraw_armour_class = true;
-
-    return SPRET_SUCCESS;
-}
-
 spret_type deflection(int pow, bool fail)
 {
     fail_check();
@@ -219,10 +116,8 @@ spret_type cast_revivification(int pow, bool fail)
     {
         mprf(MSGCH_DURATION, "Your life is in your own hands once again.");
         // XXX: better cause name?
-        paralyse_player("Death's Door abortion", 5 + random2(5));
-        confuse_player(10 + random2(10));
+        paralyse_player("Death's Door abortion");
         you.duration[DUR_DEATHS_DOOR] = 0;
-        you.increase_duration(DUR_EXHAUSTED, roll_dice(1,3));
     }
     return SPRET_SUCCESS;
 }
@@ -235,7 +130,6 @@ spret_type cast_swiftness(int power, bool fail)
     {
         // Hint that the player won't be faster until they leave the liquid.
         mprf("The %s foams!", you.in_water() ? "water"
-                            : you.in_lava()  ? "lava"
                                              : "liquid ground");
     }
 
@@ -259,51 +153,25 @@ int cast_selective_amnesia(const string &pre_msg)
     int slot;
 
     // Pick a spell to forget.
-    mprf(MSGCH_PROMPT, "Forget which spell ([?*] list [ESC] exit)? ");
     keyin = list_spells(false, false, false, "Forget which spell?");
     redraw_screen();
 
-    while (true)
+    if (isaalpha(keyin))
     {
-        if (key_is_escape(keyin))
-        {
-            canned_msg(MSG_OK);
-            return -1;
-        }
-
-        if (keyin == '?' || keyin == '*')
-        {
-            keyin = list_spells(false, false, false, "Forget which spell?");
-            redraw_screen();
-        }
-
-        if (!isaalpha(keyin))
-        {
-            clear_messages();
-            mprf(MSGCH_PROMPT, "Forget which spell ([?*] list [ESC] exit)? ");
-            keyin = get_ch();
-            continue;
-        }
-
         spell = get_spell_by_letter(keyin);
         slot = get_spell_slot_by_letter(keyin);
 
-        if (spell == SPELL_NO_SPELL)
+        if (spell != SPELL_NO_SPELL)
         {
-            mpr("You don't know that spell.");
-            mprf(MSGCH_PROMPT, "Forget which spell ([?*] list [ESC] exit)? ");
-            keyin = get_ch();
+            if (!pre_msg.empty())
+                mpr(pre_msg);
+            del_spell_from_memory_by_slot(slot);
+            return 1;
         }
-        else
-            break;
     }
 
-    if (!pre_msg.empty())
-        mpr(pre_msg);
-
-    del_spell_from_memory_by_slot(slot);
-
-    return 1;
+    canned_msg(MSG_OK);
+    return -1;
 }
 
 spret_type cast_infusion(int pow, bool fail)

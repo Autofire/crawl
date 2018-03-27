@@ -128,7 +128,7 @@ deplete magical power.
 Blade Hands spell
 
 Causes long, scythe-shaped blades to grow from the caster's hands, increasing
-melee damage to a degree depending on strength and dexterity.
+melee damage significantly.
 
 While transformed, any equipped weapons are melded. The caster also becomes
 unable to evoke wands, and casting spells becomes somewhat more difficult.
@@ -198,9 +198,14 @@ Instantly heals any and all wounds suffered by the caster, but also permanently
 lessens their resilience to injury, to a degree dependent on (and inversely
 related to) power.
 
-It is powerful enough to literally pull someone out of Death's Door, although
-the shock will briefly confuse and paralyse the caster. It has no effect on the
-undead.
+It is powerful enough to cancel the effects of Death's Door, although doing so
+will briefly paralyse the caster. It has no effect on the undead.
+%%%%
+Borgnjor's Vile Clutch spell
+
+Calls forth hands from corpses interred beneath the dungeon floor long ago.
+Enemies caught in the area will be held in place and constricted until they
+break free.
 %%%%
 Brain Feed spell
 
@@ -267,14 +272,6 @@ Chilling Breath spell
 
 Exhales a blast of frost that may knock back airborne targets.
 %%%%
-Cigotuvi's Embrace spell
-
-Violently mutilates all nearby corpses, wrapping them around the caster to
-serve as both armour and shield. The carrion will fall away over time, faster
-and faster as more is piled on, though increased power will tighten its grasp
-on the caster's body. It has no effect on casters in Statue Form, or with
-Ozocubu's Armour active.
-%%%%
 Cleansing Flame spell
 
 <Cleansing Flame ability>
@@ -320,15 +317,6 @@ Conjure Flame spell
 
 Creates a blazing column of flame in a targeted empty location.
 %%%%
-Control Undead spell
-
-Enslaves any undead in the vicinity of the caster.
-%%%%
-Control Winds spell
-
-Allows limited powers over the flow of air in caster's sight, blowing away or
-dissipating any nearby clouds affecting the caster or their allies.
-%%%%
 Controlled Blink spell
 
 Translocates the caster a short distance, with precise control. Be wary that
@@ -351,12 +339,6 @@ Corrosive Bolt spell
 
 Fires a penetrating bolt of acid.
 %%%%
-Corrupt Body spell
-
-Instills a corruption within a target, temporarily mutating their body in an
-adverse fashion. It cannot affect artificial beings, and the undead will
-decompose if affected.
-%%%%
 Corrupting Pulse spell
 
 Instills a corruption within all visible targets, temporarily mutating their
@@ -368,10 +350,6 @@ Crystal Bolt spell
 Projects a penetrating projectile with peculiar magical properties. It is
 randomly imbued with either fire or ice, and additionally will reflect from
 walls of any material due to the crystal embedded in the shot.
-%%%%
-Cure Poison spell
-
-Removes poison from the caster's system.
 %%%%
 Darkness spell
 
@@ -397,9 +375,10 @@ Renders the caster nigh invulnerable to harm for a brief period, but brings
 them dangerously close to death in the process. So close, in fact, that the
 body believes itself to be dead — healing effects will do nothing.
 
-The caster will receive one warning shortly before the spell expires. With high
-power, the caster will be left more resilient when the effect ends. It has no
-effect on those who are already undead.
+The caster will receive one warning shortly before the spell expires. After
+expiry, the spell cannot immediately be recast, but with high power the caster
+will be left more resilient when the effect ends. It has no effect on those who
+are already undead.
 %%%%
 Debugging Ray spell
 
@@ -411,12 +390,6 @@ Protects the caster from all kinds of projectile attacks, making them
 significantly easier to dodge. It is highly effective against both
 single-target and penetrating attacks. Each time a missile is deflected the
 spell has a chance of expiring, with a lower chance of expiry at high power.
-%%%%
-Delayed Fireball spell
-
-Gives the caster the ability to instantaneously release a fireball at a later
-time. Knowing this spell allows the learner to memorise Fireball for no
-additional spell levels.
 %%%%
 Dig spell
 
@@ -494,8 +467,8 @@ Dragon Form spell
     desc = desc .. "."
 
     return desc
-}} The caster's melee damage will be substantially increased to a degree
-depending on strength, and they become much more robust but less evasive.
+}} The caster becomes able to deal incredible damage in melee combat, and
+they become much more robust, although their evasiveness is reduced.
 
 While transformed, any equipped weapons and armour are melded.
 %%%%
@@ -504,7 +477,7 @@ Dragon's Call spell
 Issues a powerful call to a draconic realm, beckoning forth dragon after dragon
 to engage the summoner's enemies. The spell is taxing to maintain, and each new
 dragon which answers the call will further drain the summoner's magical
-reserves.
+reserves. After the call ends, it cannot be issued again for a short time.
 %%%%
 Drain Life spell
 
@@ -581,8 +554,7 @@ Summons demons of flame and damnation.
 %%%%
 Fireball spell
 
-Hurls an explosive ball of fire. This spell does not cost any spell levels if
-the learner already knows Delayed Fireball.
+Hurls an explosive ball of fire.
 %%%%
 Flame Tongue spell
 
@@ -610,7 +582,8 @@ the Vaults, or the Crypt; the specific branch varies with the caster.
 %%%%
 Freeze spell
 
-Freezes an adjacent creature. This may temporarily slow cold-blooded creatures.
+Freezes an adjacent creature, dealing damage that bypasses any armour the
+target may have. This may temporarily slow cold-blooded creatures.
 %%%%
 Freezing Cloud spell
 
@@ -662,8 +635,7 @@ Speeds the actions of a nearby ally.
 %%%%
 Haste spell
 
-Speeds the actions of a targeted creature. While hasted you will gain magical
-contamination.
+Speeds the actions of a targeted creature.
 %%%%
 Haunt spell
 
@@ -785,9 +757,10 @@ Hurls a large and heavy metal shot.
 Irradiate spell
 
 Transmutes an ultra-thin layer of the caster's skin (or equivalent) directly
-into pure magical energy, blasting and deforming adjacent creatures. The caster
-is not left entirely unaffected; some of the magic lingers, enough to leave
-them dangerously contaminated after a few castings.
+into pure magical energy, blasting adjacent creatures and bypassing any armour
+they may have. It heavily deforms its targets, weakening them and reducing
+their armour. The caster is not left entirely unaffected; some of the magic
+lingers, enough to leave them dangerously contaminated after a few castings.
 %%%%
 Iskenderun's Battlesphere spell
 
@@ -819,15 +792,14 @@ deadly shrapnel. It can be used on monsters made of ice, bone, or any wall-like
 substance, as well as those turned to stone by petrification. Its damage is
 strongly reduced by armour.
 
-Targets made from rock, stone, ice or bone will cause a small or medium-sized
-explosion. Metal targets will cause a small but particularly damaging
-explosion, and targets made from crystal will cause a large and extremely
-damaging explosion.
+Targets made from rock, stone, ice or bone will cause a small explosion. Metal
+targets will cause a small but more damaging explosion, and targets made from
+crystal will cause a large and more damaging explosion.
 
 At high power, this spell is capable of destroying some walls: rock, stone or
 metal walls have a chance of being destroyed with at least 5, 6 or 7 bars of
-power. Crystal walls are particularly brittle and have a chance of being
-destroyed at any power level.
+power respectively. Crystal walls are particularly brittle and have a chance of
+being destroyed at any power level.
 %%%%
 Legendary Destruction spell
 
@@ -969,16 +941,17 @@ impact. Its damage partially bypasses armour.
 %%%%
 Ozocubu's Armour spell
 
-Envelops the caster's body in a protective layer of thick ice. This will slow
-the caster's movement slightly, and provides no special protection against cold.
-The spell will not function for casters already wearing heavy armour (any body
+Envelops the caster's body in a protective layer of thick ice, granting a
+substantial bonus to armour as long as they remain in their current location.
+The ice will crack and fall away if the caster moves to a new position. The
+spell will not function for casters already wearing heavy armour (any body
 armour with an encumbrance rating of 5 or more).
 %%%%
 Ozocubu's Refrigeration spell
 
 Drains heat from the caster and their surroundings, causing harm to all
-creatures not resistant to cold and preventing the caster from using potions
-for a brief duration.
+creatures not resistant to cold and bypassing any armour the targets may have.
+It prevents the caster from using potions for a brief duration.
 %%%%
 Pain spell
 
@@ -1167,10 +1140,12 @@ shadow.
 %%%%
 Shatter spell
 
-Causes an enormous burst of concussive force around the caster. Flying and
-gelatinous creatures can escape the worst effects, and insubstantial creatures
-are entirely unaffected, but all others will be gravely injured by the blast.
-It may also destroy nearby walls.
+Causes an enormous burst of concussive force around the caster, dealing severe
+damage to all nearby creatures. It is especially effective against those made
+from ice, bone, or any wall-like substance (such as rock, metal or crystal), as
+well as those turned to stone by petrification. It is less effective against
+flying, gelatinous and insubstantial creatures. It may also destroy nearby
+walls.
 %%%%
 Shock spell
 
@@ -1182,10 +1157,6 @@ Bends space around the caster's body, protecting them from some blows by
 redirecting their force to the air nearby. Ranged attacks cannot be diverted in
 this way. The shroud is highly unstable, and may fall apart unexpectedly under
 stress.
-%%%%
-Warning Cry spell
-
-Generates a loud noise, alerting nearby enemies.
 %%%%
 Silence spell
 
@@ -1273,7 +1244,7 @@ difficult.
 %%%%
 Spit Acid spell
 
-<Spit Acid ability>
+Spits acid at a targeted creature.
 %%%%
 Spit Lava spell
 
@@ -1285,7 +1256,7 @@ Spit Poison spell
 %%%%
 Sprint spell
 
-Causes the caster to cover ground more rapidly for a short duration.
+Causes the caster to move across terrain more rapidly for a short duration.
 %%%%
 Static Discharge spell
 
@@ -1297,10 +1268,9 @@ the target may have.
 Statue Form spell
 
 Transforms the caster into a slow but extremely robust stone statue. The
-caster's unarmed damage will be increased to a degree depending on strength,
-and all melee attacks will be substantially more powerful. The caster's stone
-body is insulated from electricity and gains resistance to poison, rotting and
-negative energy.
+caster's melee damage, both unarmed and with weapons, is substantially
+increased. The caster's stone body is insulated from electricity and gains
+resistance to poison, rotting and negative energy.
 
 While transformed, any equipped body armour, gloves and boots are melded.
 %%%%
@@ -1317,10 +1287,6 @@ Sticky Flame Range spell
 
 Launches a glob of sticky flame, covering a targeted creature with liquid fire
 for a short time.
-%%%%
-Sticky Flame Splash spell
-
-<Breathe Sticky Flame ability>
 %%%%
 Sticky Flame spell
 
@@ -1341,11 +1307,6 @@ Fires a magical dart of poison.
 Stone Arrow spell
 
 Fires a sharp spine of rock.
-%%%%
-Stoneskin spell
-
-Hardens the caster's skin. It has no effect on the undead or those under the
-effects of most types of transformation.
 %%%%
 Strip Resistance spell
 
@@ -1481,10 +1442,6 @@ Summon Spectral Orcs spell
 Summons between one and three spectral orcs, specialised for melee combat
 and equipped with spectral weaponry and armour.
 %%%%
-Summon Swarm spell
-
-Summons forth a pestilential swarm of insects.
-%%%%
 Summon Ufetubus spell
 
 Summons multiple ufetubi; small, annoying demons.
@@ -1521,10 +1478,6 @@ Teleport Self spell
 
 Teleports the caster to a random location.
 %%%%
-Throw spell
-
-Hurls an adjacent foe a considerable distance, injuring them.
-%%%%
 Throw Barbs spell
 
 Fires a volley of barbs at the target, skewering them and making movement
@@ -1558,7 +1511,8 @@ Tornado spell
 Turns the air around the caster into a mighty vortex, doing tremendous damage
 to everyone caught in it. Those affected will also be swept up into the air and
 tossed around. Only the eye of the storm is a safe place, and it follows the
-caster. The spell's effectiveness is greatly diminished in closed areas.
+caster. The spell's effectiveness is greatly diminished in closed areas. After
+the tornado fades, it cannot be called forth again for a short time.
 %%%%
 Trog's Hand spell
 
@@ -1600,6 +1554,14 @@ Makes a targeted creature more vulnerable to poison.
 Volley of Thorns spell
 
 Launches a small hail of sharp thorns.
+%%%%
+Vortex spell
+
+Turns the air near the caster into a mighty, short-lived vortex, doing
+tremendous damage to everyone caught in it. Those affected will also be swept
+up into the air and tossed around. Only the eye of the storm is a safe place,
+and it follows the caster. After the vortex fades, it cannot be called forth
+again for a short time.
 %%%%
 Wall of Brambles spell
 

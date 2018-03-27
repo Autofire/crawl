@@ -34,6 +34,7 @@
 #include "fight.h"
 #include "files.h"
 #include "fineff.h"
+#include "ghost.h"
 #include "god-abil.h"
 #include "god-conduct.h"
 #include "god-passive.h"
@@ -80,7 +81,7 @@ void maybe_melt_player_enchantments(beam_type flavour, int damage)
     if (flavour == BEAM_FIRE || flavour == BEAM_LAVA
         || flavour == BEAM_STICKY_FLAME || flavour == BEAM_STEAM)
     {
-        if (you.mutation[MUT_ICEMAIL])
+        if (you.has_mutation(MUT_ICEMAIL))
         {
             if (!you.duration[DUR_ICEMAIL_DEPLETED])
                 mprf(MSGCH_DURATION, "Your icy envelope dissipates!");
@@ -270,9 +271,7 @@ int check_your_resists(int hurted, beam_type flavour, string source,
     case BEAM_AIR:
     {
         // Airstrike.
-        if (you.res_wind())
-            hurted = 0;
-        else if (you.airborne())
+        if (you.airborne())
             hurted += hurted / 2;
         break;
     }
@@ -309,7 +308,7 @@ void expose_player_to_element(beam_type flavour, int strength, bool slow_cold_bl
     qazlal_element_adapt(flavour, strength);
 
     if (flavour == BEAM_COLD && slow_cold_blooded
-        && player_mutation_level(MUT_COLD_BLOODED)
+        && you.get_mutation_level(MUT_COLD_BLOODED)
         && you.res_cold() <= 0 && coinflip())
     {
         you.slow_down(0, strength);
@@ -602,9 +601,9 @@ static void _maybe_spawn_monsters(int dam, const bool is_torment,
 
 static void _powered_by_pain(int dam)
 {
-    const int level = player_mutation_level(MUT_POWERED_BY_PAIN);
+    const int level = you.get_mutation_level(MUT_POWERED_BY_PAIN);
 
-    if (you.mutation[MUT_POWERED_BY_PAIN]
+    if (level > 0
         && (random2(dam) > 4 + div_rand_round(you.experience_level, 4)
             || dam >= you.hp_max / 2))
     {
@@ -665,7 +664,7 @@ static void _maybe_fog(int dam)
 
 static void _deteriorate(int dam)
 {
-    if (x_chance_in_y(player_mutation_level(MUT_DETERIORATION), 4)
+    if (x_chance_in_y(you.get_mutation_level(MUT_DETERIORATION), 4)
         && dam > you.hp_max / 10)
     {
         mprf(MSGCH_WARN, "Your body deteriorates!");
@@ -857,7 +856,7 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
 
         // Check _is_damage_threatening separately for read and drink so they
         // don't always trigger in unison when you have both.
-        if (player_mutation_level(MUT_NO_READ))
+        if (you.get_mutation_level(MUT_NO_READ))
         {
             if (_is_damage_threatening(damage_fraction_of_hp))
             {
@@ -868,7 +867,7 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
             }
         }
 
-        if (player_mutation_level(MUT_NO_DRINK))
+        if (you.get_mutation_level(MUT_NO_DRINK))
         {
             if (_is_damage_threatening(damage_fraction_of_hp))
             {
@@ -1034,7 +1033,7 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
 #ifdef WIZARD
     if (!non_death)
     {
-        if (crawl_state.test || you.wizard || (you.explore && !you.lives))
+        if (crawl_state.test || you.wizard || you.suppress_wizard || (you.explore && !you.lives))
         {
             const string death_desc
                 = se.death_description(scorefile_entry::DDV_VERBOSE);
@@ -1108,7 +1107,7 @@ void ouch(int dam, kill_method_type death_type, mid_t source, const char *aux,
 
     // Never generate bones files of wizard or tutorial characters -- bwr
     if (!non_death && !crawl_state.game_is_tutorial() && !you.wizard)
-        save_ghost();
+        save_ghosts(ghost_demon::find_ghosts());
 
     end_game(se, hiscore_index);
 }

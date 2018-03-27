@@ -1063,12 +1063,10 @@ static void _mimic_vanish(const coord_def& pos, const string& name)
     const char* const smoke_str = can_place_smoke ? " in a puff of smoke" : "";
 
     const bool can_cackle = !silenced(pos) && !silenced(you.pos());
-    const string db_cackle = getSpeakString("_laughs_");
-    const string cackle = db_cackle != "" ? db_cackle : "cackles";
-    const string cackle_str = can_cackle ? cackle + " and " : "";
+    const string cackle = can_cackle ? getSpeakString("_laughs_") + " and " : "";
 
     mprf("The %s mimic %svanishes%s!",
-         name.c_str(), cackle_str.c_str(), smoke_str);
+         name.c_str(), cackle.c_str(), smoke_str);
     interrupt_activity(AI_MIMIC);
 }
 
@@ -1711,6 +1709,11 @@ bool mons_class_can_use_stairs(monster_type mc)
            && mc != MONS_ROYAL_JELLY;
 }
 
+bool mons_class_can_use_transporter(monster_type mc)
+{
+    return !mons_is_tentacle_or_tentacle_segment(mc);
+}
+
 bool mons_can_use_stairs(const monster& mon, dungeon_feature_type stair)
 {
     if (!mons_class_can_use_stairs(mon.type))
@@ -2028,10 +2031,13 @@ static int _mons_damage(monster_type mc, int rt)
 /**
  * A short description of the given monster attack type.
  *
- * @param attack    The attack to be described; e.g. AT_HIT, AT_SPORE.
- * @return          A short description; e.g. "hit", "release spores at".
+ * @param attack      The attack to be described; e.g. AT_HIT, AT_SPORE.
+ * @param with_object Is the description being used with an object/target?
+ *                    True results in e.g. "pounce on"; false, just "pounce".
+ *                    Optional parameter, default true.
+ * @return            A short description; e.g. "hit", "release spores at".
  */
-string mon_attack_name(attack_type attack)
+string mon_attack_name(attack_type attack, bool with_object)
 {
     static const char *attack_types[] =
     {
@@ -2075,7 +2081,14 @@ string mon_attack_name(attack_type attack)
     const int verb_index = attack - AT_FIRST_ATTACK;
     dprf("verb index: %d", verb_index);
     ASSERT(verb_index < (int)ARRAYSZ(attack_types));
-    return attack_types[verb_index];
+
+    if (with_object)
+        return attack_types[verb_index];
+    else
+    {
+        return replace_all(replace_all(attack_types[verb_index], " at", ""),
+                                                                 " on", "");
+    }
 }
 
 /**
@@ -2155,9 +2168,9 @@ bool mons_flattens_trees(const monster& mon)
     return mons_base_type(mon) == MONS_LERNAEAN_HYDRA;
 }
 
-bool mons_class_res_wind(monster_type mc)
+bool mons_class_res_tornado(monster_type mc)
 {
-    return get_resist(get_mons_class_resists(mc), MR_RES_WIND);
+    return get_resist(get_mons_class_resists(mc), MR_RES_TORNADO);
 }
 
 /**
@@ -2935,8 +2948,6 @@ void define_monster(monster& mons)
         ghost.init_player_ghost(mcls == MONS_PLAYER_GHOST);
         mons.set_ghost(ghost);
         mons.ghost_init(!mons.props.exists("fake"));
-        mons.bind_melee_flags();
-        mons.bind_spell_flags();
         break;
     }
 
@@ -3556,7 +3567,7 @@ void mons_pacify(monster& mon, mon_attitude_type att, bool no_xp)
     }
 
     // End constriction.
-    mon.stop_constricting_all(false);
+    mon.stop_constricting_all();
     mon.stop_being_constricted();
 
     // Cancel fleeing and such.
@@ -3815,7 +3826,7 @@ static bool _mons_has_usable_ranged_weapon(const monster* mon)
     if (!missile)
         return false;
 
-    return is_launched(mon, weapon, *missile);
+    return is_launched(mon, weapon, *missile) != launch_retval::FUMBLED;
 }
 
 bool mons_has_ranged_attack(const monster& mon)
@@ -5160,7 +5171,6 @@ void reset_all_monsters()
         {
             delete mons.constricting;
             mons.constricting = nullptr;
-            mons.clear_constricted();
         }
         mons.reset();
     }
@@ -5271,7 +5281,7 @@ bool choose_any_monster(const monster& mon)
 }
 
 // Find a nearby monster and return its index, including you as a
-// possibility with probability weight.  suitable() should return true
+// possibility with probability weight. suitable() should return true
 // for the type of monster wanted.
 // If prefer_named is true, named monsters (including uniques) are twice
 // as likely to get chosen compared to non-named ones.
@@ -5708,7 +5718,7 @@ static bool _apply_to_monsters(monster_func f, radius_iterator&& ri)
     for (; ri; ri++)
     {
         monster* mons = monster_at(*ri);
-        if (mons)
+        if (!invalid_monster(mons))
             affected_any = f(*mons) || affected_any;
     }
 
@@ -5718,7 +5728,8 @@ static bool _apply_to_monsters(monster_func f, radius_iterator&& ri)
 bool apply_monsters_around_square(monster_func f, const coord_def& where,
                                   int radius)
 {
-    return _apply_to_monsters(f, radius_iterator(where, radius, C_SQUARE, true));
+    return _apply_to_monsters(f, radius_iterator(where, radius, C_SQUARE,
+                                                 LOS_NO_TRANS, true));
 }
 
 bool apply_visible_monsters(monster_func f, const coord_def& where, los_type los)

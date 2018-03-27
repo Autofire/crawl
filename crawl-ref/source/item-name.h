@@ -3,16 +3,13 @@
  * @brief Misc functions.
 **/
 
-#ifndef ITEMNAME_H
-#define ITEMNAME_H
+#pragma once
 
 #include "mon-flags.h"
 #include "random.h"
 
 #define CORPSE_NAME_KEY      "corpse_name_key"
 #define CORPSE_NAME_TYPE_KEY "corpse_name_type_key"
-
-#define PAKELLAS_SUPERCHARGE_KEY "pakellas_supercharged"
 
 struct item_kind
 {
@@ -164,4 +161,3 @@ string ghost_brand_name(int brand);
 
 const char* potion_type_name(int potiontype);  //used in xom.cc
 const char* jewellery_effect_name(int jeweltype, bool terse = false) PURE; //used in l-item.cc
-#endif

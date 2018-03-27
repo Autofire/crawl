@@ -3,13 +3,17 @@
  * @brief Functions related to ranged attacks.
 **/
 
-#ifndef BEAM_H
-#define BEAM_H
+#pragma once
 
+#include "ac-type.h"
+#include "beam-type.h"
+#include "enchant-type.h"
+#include "mon-attitude-type.h"
 #include "options.h"
 #include "random.h"
 #include "ray.h"
 #include "spl-cast.h"
+#include "zap-type.h"
 
 #define BEAM_STOP       1000        // all beams stopped by subtracting this
                                     // from remaining range
@@ -147,9 +151,7 @@ struct bolt
 
     ray_def     ray;             // shoot on this specific ray
 
-#ifdef USE_TILE
-    int         tile_beam;
-#endif
+    int         tile_beam; // only used if USE_TILE is defined
 
 private:
     bool can_see_invis = false;
@@ -204,7 +206,6 @@ public:
 private:
     void do_fire();
     void initialise_fire();
-    void apply_beam_conducts();
 
     // Lots of properties of the beam.
     coord_def pos() const;
@@ -264,6 +265,7 @@ private:
     void enchantment_affect_monster(monster* mon);
 public:
     mon_resist_type apply_enchantment_to_monster(monster* mon);
+    void apply_beam_conducts();
 private:
     void apply_bolt_paralysis(monster* mons);
     void apply_bolt_petrify(monster* mons);
@@ -341,4 +343,3 @@ bool shoot_through_monster(const bolt& beam, const monster* victim);
 int omnireflect_chance_denom(int SH);
 
 bolt setup_targetting_beam(const monster &mons);
-#endif

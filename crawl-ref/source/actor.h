@@ -1,9 +1,20 @@
-#ifndef ACTOR_H
-#define ACTOR_H
+#pragma once
 
+#include "artefact-prop-type.h"
+#include "beam-type.h"
+#include "conduct-type.h"
+#include "energy-use-type.h"
+#include "equipment-type.h"
+#include "god-type.h"
 #include "item-prop-enum.h"
+#include "mon-holy-type.h"
 #include "random-var.h"
 #include "ouch.h"
+#include "pronoun-type.h"
+#include "reach-type.h"
+#include "size-part-type.h"
+#include "size-type.h"
+#include "stat-type.h"
 
 #define CLING_KEY "clinging" // 'is creature clinging' property key
 
@@ -231,7 +242,8 @@ public:
                              string source = "") = 0;
 
     virtual int  skill(skill_type sk, int scale = 1,
-                       bool real = false, bool drained = true) const = 0;
+                       bool real = false, bool drained = true,
+                       bool temp = true) const = 0;
     int  skill_rdiv(skill_type sk, int mult = 1, int div = 1) const;
 
 #define TORPOR_SLOWED_KEY "torpor_slowed"
@@ -291,7 +303,7 @@ public:
     virtual int res_holy_energy() const = 0;
     virtual int res_negative_energy(bool intrinsic_only = false) const = 0;
     virtual bool res_torment() const = 0;
-    virtual bool res_wind() const = 0;
+    virtual bool res_tornado() const = 0;
     virtual bool res_petrify(bool temp = true) const = 0;
     virtual int res_constrict() const = 0;
     virtual int res_magic(bool calc_unid = true) const = 0;
@@ -307,6 +319,7 @@ public:
     bool has_notele_item(bool calc_unid = true,
                          vector<item_def> *matches = nullptr) const;
     virtual bool stasis() const = 0;
+    virtual bool cloud_immune(bool calc_unid = true, bool items = true) const;
     virtual bool run(bool calc_unid = true, bool items = true) const;
     virtual bool angry(bool calc_unid = true, bool items = true) const;
     virtual bool clarity(bool calc_unid = true, bool items = true) const;
@@ -319,7 +332,7 @@ public:
 
     virtual bool rmut_from_item(bool calc_unid = true) const;
     virtual bool evokable_berserk(bool calc_unid = true) const;
-    virtual bool evokable_invis(bool calc_unid = true) const;
+    virtual int evokable_invis(bool calc_unid = true) const;
 
     // Return an int so we know whether an item is the sole source.
     virtual int evokable_flight(bool calc_unid = true) const;
@@ -353,10 +366,6 @@ public:
     virtual bool haloed() const;
     // Within an umbra?
     virtual bool umbraed() const;
-#if TAG_MAJOR_VERSION == 34
-    // Being heated by a heat aura?
-    virtual bool heated() const;
-#endif
     // Halo radius.
     virtual int halo_radius() const = 0;
     // Silence radius.
@@ -364,9 +373,6 @@ public:
     // Liquefying radius.
     virtual int liquefying_radius() const = 0;
     virtual int umbra_radius() const = 0;
-#if TAG_MAJOR_VERSION == 34
-    virtual int heat_radius() const = 0;
-#endif
 
     virtual bool petrifying() const = 0;
     virtual bool petrified() const = 0;
@@ -404,8 +410,6 @@ public:
 
     // Constriction stuff:
 
-    // What is holding us?  Not necessarily a monster.
-    held_type held;
     mid_t constricted_by;
     int escape_attempts;
 
@@ -419,18 +423,22 @@ public:
     void stop_constricting(mid_t whom, bool intentional = false,
                            bool quiet = false);
     void stop_constricting_all(bool intentional = false, bool quiet = false);
+    void stop_directly_constricting_all(bool intentional = false,
+                                        bool quiet = false);
     void stop_being_constricted(bool quiet = false);
 
-    bool can_constrict(const actor* defender) const;
-    void clear_far_constrictions();
-    void clear_constrictions_far_from(const coord_def &where);
+    bool can_constrict(const actor* defender, bool direct) const;
+    bool has_invalid_constrictor(bool move = false) const;
+    void clear_invalid_constrictions(bool move = false);
     void accum_has_constricted();
     void handle_constriction();
     bool is_constricted() const;
+    bool is_directly_constricted() const;
     bool is_constricting() const;
     int num_constricting() const;
     virtual bool has_usable_tentacle() const = 0;
-    virtual int constriction_damage() const = 0;
+    virtual int constriction_damage(bool direct) const = 0;
+    virtual bool constriction_does_damage(bool direct) const = 0;
     virtual bool clear_far_engulf() = 0;
 
     // Be careful using this, as it doesn't keep the constrictor in sync.
@@ -442,10 +450,12 @@ public:
 
     void collide(coord_def newpos, const actor *agent, int pow);
 
+    static const actor *ensure_valid_actor(const actor *act);
+    static actor *ensure_valid_actor(actor *act);
+
 private:
+    void constriction_damage_defender(actor &defender, int duration);
     void end_constriction(mid_t whom, bool intentional, bool quiet);
 };
 
 bool actor_slime_wall_immune(const actor *actor);
-
-#endif

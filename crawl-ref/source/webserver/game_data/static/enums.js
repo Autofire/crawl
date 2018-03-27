@@ -202,6 +202,10 @@ define(function () {
     fg_flags.flags.IDEALISED    = [0, 0x100000];
     fg_flags.flags.BOUND_SOUL   = [0, 0x200000];
     fg_flags.flags.INFESTED     = [0, 0x400000];
+    fg_flags.flags.CORRODED     = [0, 0x800000];
+    fg_flags.flags.SWIFT        = [0, 0x1000000];
+    fg_flags.flags.PINNED       = [0, 0x2000000];
+    fg_flags.flags.VILE_CLUTCH  = [0, 0x4000000];
 
     // MDAM has 5 possibilities, so uses 3 bits.
     fg_flags.exclusive_flags.push({
@@ -243,6 +247,7 @@ define(function () {
     bg_flags.flags.OOR        = 0x02000000;
     bg_flags.flags.WATER      = 0x04000000;
     bg_flags.flags.NEW_STAIR  = 0x08000000;
+    bg_flags.flags.NEW_TRANSPORTER = 0x10000000;
 
     // Kraken tentacle overlays.
     bg_flags.flags.KRAKEN_NW  = 0x20000000;

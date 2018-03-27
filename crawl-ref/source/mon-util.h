@@ -3,13 +3,14 @@
  * @brief Misc monster related functions.
 **/
 
-#ifndef MONUTIL_H
-#define MONUTIL_H
+#pragma once
 
 #include <functional>
 
 #include "enum.h"
+#include "los-type.h"
 #include "mon-enum.h"
+#include "mon-inv-type.h"
 #include "player.h"
 
 struct bolt;
@@ -208,7 +209,7 @@ bool give_monster_proper_name(monster& mon, bool orcs_only = true);
 
 bool mons_flattens_trees(const monster& mon);
 size_type mons_class_body_size(monster_type mc);
-bool mons_class_res_wind(monster_type mc);
+bool mons_class_res_tornado(monster_type mc);
 
 mon_itemuse_type mons_class_itemuse(monster_type mc);
 mon_itemuse_type mons_itemuse(const monster& mon);
@@ -244,7 +245,7 @@ bool mons_class_sees_invis(monster_type type, monster_type base);
 bool mons_immune_magic(const monster& mon);
 
 mon_attack_def mons_attack_spec(const monster& mon, int attk_number, bool base_flavour = false);
-string mon_attack_name(attack_type attack);
+string mon_attack_name(attack_type attack, bool with_object = true);
 bool flavour_triggers_damageless(attack_flavour flavour);
 int flavour_damage(attack_flavour flavour, int HD, bool random = true);
 
@@ -312,6 +313,7 @@ bool mons_is_zombified(const monster& mons);
 bool mons_class_can_be_zombified(monster_type mc);
 bool mons_can_be_zombified(const monster& mon);
 bool mons_class_can_use_stairs(monster_type mc);
+bool mons_class_can_use_transporter(monster_type mc);
 bool mons_can_use_stairs(const monster& mon,
                          dungeon_feature_type stair = DNGN_UNSEEN);
 bool mons_enslaved_body_and_soul(const monster& mon);
@@ -572,5 +574,3 @@ bool apply_visible_monsters(monster_func mf,
                             los_type los = LOS_NO_TRANS);
 
 int derived_undead_avg_hp(monster_type mtype, int hd, int scale = 10);
-
-#endif

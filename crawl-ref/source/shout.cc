@@ -22,6 +22,7 @@
 #include "ghost.h"
 #include "god-abil.h"
 #include "hints.h"
+#include "item-status-flag-type.h"
 #include "jobs.h"
 #include "libutil.h"
 #include "macro.h"
@@ -35,6 +36,7 @@
 #include "stringutil.h"
 #include "terrain.h"
 #include "view.h"
+#include "viewchar.h"
 
 static noise_grid _noise_grid;
 static void _actor_apply_noise(actor *act,
@@ -279,7 +281,7 @@ bool check_awaken(monster* mons, int stealth)
         return true;
 
     // If you've sacrificed stealth, you always alert monsters.
-    if (player_mutation_level(MUT_NO_STEALTH))
+    if (you.get_mutation_level(MUT_NO_STEALTH))
         return true;
 
 
@@ -485,7 +487,7 @@ static void _set_allies_patrol_point(bool clear = false)
 static void _set_allies_withdraw(const coord_def &target)
 {
     coord_def delta = target - you.pos();
-    float mult = float(LOS_RADIUS * 2) / (float)max(abs(delta.x), abs(delta.y));
+    float mult = float(LOS_DEFAULT_RANGE * 2) / (float)max(abs(delta.x), abs(delta.y));
     coord_def rally_point = clamp_in_bounds(coord_def(delta.x * mult, delta.y * mult) + you.pos());
 
     for (monster_near_iterator mi(you.pos()); mi; ++mi)
@@ -539,8 +541,7 @@ static int _issue_orders_prompt()
     }
     mpr(" Anything else - Cancel.");
 
-    if (you.berserk())
-        flush_prev_message(); // buffer doesn't get flushed otherwise
+    flush_prev_message(); // buffer doesn't get flushed otherwise
 
     const int keyn = get_ch();
     clear_messages();
@@ -808,11 +809,14 @@ bool noisy(int original_loudness, const coord_def& where,
         crawl_state.game_is_sprint()? max(1, div_rand_round(loudness, 2))
                                     : loudness;
 
+    // The multiplier converts to milli-auns which are used internally by noise propagation.
+    const int multiplier = 1000;
+
     // Add +1 to scaled_loudness so that all squares adjacent to a
     // sound of loudness 1 will hear the sound.
     const string noise_msg(msg? msg : "");
     _noise_grid.register_noise(
-        noise_t(where, noise_msg, (scaled_loudness + 1) * 1000, who));
+        noise_t(where, noise_msg, (scaled_loudness + 1) * multiplier, who));
 
     // Some users of noisy() want an immediate answer to whether the
     // player heard the noise. The deferred noise system also means
@@ -1080,7 +1084,7 @@ void noise_grid::propagate_noise()
     if (affected_actor_count)
     {
         mprf(MSGCH_WARN, "Writing noise grid with %d noise sources",
-             noises.size());
+             (int) noises.size());
         dump_noise_grid("noise-grid.html");
     }
 #endif
@@ -1127,9 +1131,28 @@ void noise_grid::apply_noise_effects(const coord_def &pos,
 {
     if (you.pos() == pos)
     {
+        // The bizarre arrangement of those code into two functions that each
+        // check whether the actor is the player, but work at different types,
+        // probably ought to be refactored. I put the noise updating code here
+        // because the type is correct here.
+
         _actor_apply_noise(&you, noise.noise_source,
                            noise_intensity_millis, noise,
                            noise_travel_distance);
+
+        // The next bit stores noise heard at the player's position for
+        // display in the HUD. A more interesting (and much more complicated)
+        // way of doing this might be to sample from the noise grid at
+        // selected distances from the player. Dealing with terrain is a bit
+        // nightmarish for this alternative, though, so I'm going to keep it
+        // simple.
+        you.los_noise_level = you.asleep()
+                            // noise may awaken the player but this should be
+                            // dealt with in `_actor_apply_noise`. We want only
+                            // noises after awakening (or the awakening noise)
+                            // to be shown.
+                            ? 0
+                            : max(you.los_noise_level, noise_intensity_millis);
         ++affected_actor_count;
     }
 
@@ -1296,7 +1319,7 @@ void noise_grid::write_cell(FILE *outf, coord_def p, int ch) const
 void noise_grid::write_noise_grid(FILE *outf) const
 {
     // Duplicate the screenshot() trick.
-    FixedVector<unsigned, NUM_DCHAR_TYPES> char_table_bk;
+    FixedVector<char32_t, NUM_DCHAR_TYPES> char_table_bk;
     char_table_bk = Options.char_table;
 
     init_char_table(CSET_ASCII);
@@ -1359,11 +1382,23 @@ static void _actor_apply_noise(actor *act,
     else
     {
         monster *mons = act->as_monster();
-        // If the noise came from the character, any nearby monster
-        // will be jumping on top of them.
-        if (grid_distance(apparent_source, you.pos()) <= 3)
-            behaviour_event(mons, ME_ALERT, &you, apparent_source);
+        // If the perceived noise came from within the player's LOS, any
+        // monster that hears it will have a chance to guess that the
+        // noise was triggered by the player, depending on how close it was to
+        // the player. This happens independently of actual noise source.
+        //
+        // The probability is calculated as p(x) = (-90/R)x + 100, which is
+        // linear from p(0) = 100 to p(R) = 10. This replaces a version that
+        // was 100% from 0 to 3, and 0% outward.
+        //
+        // behavior around the old breakpoint for R=8: p(3) = 66, p(4) = 55.
+
+        const int player_distance = grid_distance(apparent_source, you.pos());
+        const int alert_prob = max(player_distance * -90 / LOS_RADIUS + 100, 0);
+
+        if (x_chance_in_y(alert_prob, 100))
+            behaviour_event(mons, ME_ALERT, &you, apparent_source); // shout + set you as foe
         else
-            behaviour_event(mons, ME_DISTURB, 0, apparent_source);
+            behaviour_event(mons, ME_DISTURB, 0, apparent_source); // wake
     }
 }

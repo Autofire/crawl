@@ -1,11 +1,23 @@
-#ifndef OPTIONS_H
-#define OPTIONS_H
+#pragma once
 
 #include <algorithm>
 
+#include "activity-interrupt-type.h"
+#include "char-set-type.h"
+#include "confirm-level-type.h"
+#include "confirm-prompt-type.h"
 #include "feature.h"
+#include "flang-t.h"
+#include "flush-reason-type.h"
+#include "hunger-state-t.h"
+#include "lang-t.h"
+#include "maybe-bool.h"
+#include "mpr.h"
 #include "newgame-def.h"
 #include "pattern.h"
+#include "screen-mode.h"
+#include "skill-focus-mode.h"
+#include "tag-pref.h"
 
 enum autosac_type
 {
@@ -114,6 +126,7 @@ struct game_options
 {
 public:
     game_options();
+    ~game_options();
     void reset_options();
 
     void read_option_line(const string &s, bool runscripts = false);
@@ -204,6 +217,7 @@ public:
 
     bool        show_newturn_mark;// Show underscore prefix in messages for new turn
     bool        show_game_time; // Show game time instead of player turns.
+    bool        equip_bar; // Show equip bar instead of noise bar.
 
     FixedBitVector<NUM_OBJECT_CLASSES> autopickups; // items to autopickup
     bool        auto_switch;     // switch melee&ranged weapons according to enemy range
@@ -219,6 +233,7 @@ public:
     bool        easy_eat_chunks; // make 'e' auto-eat the oldest safe chunk
     bool        auto_eat_chunks; // allow eating chunks while resting or travelling
     skill_focus_mode skill_focus; // is the focus skills available
+    bool        auto_hide_spells; // hide new spells
 
     bool        note_all_skill_levels;  // take note for all skill levels (1-27)
     bool        note_skill_max;   // take note when skills reach new max
@@ -256,6 +271,9 @@ public:
     int         autofight_warning;      // Amount of real time required between
                                         // two autofight commands
     bool        cloud_status;     // Whether to show a cloud status light
+
+    bool        wall_jump_prompt; // Whether to ask for confirmation before jumps.
+    bool        wall_jump_move;   // Whether to allow wall jump via movement
 
     int         fire_items_start; // index of first item for fire command
     vector<unsigned> fire_order;  // missile search order for 'f' command
@@ -316,7 +334,14 @@ public:
     unsigned    tc_reachable;   // Colour for squares that are reachable
     unsigned    tc_excluded;    // Colour for excluded squares.
     unsigned    tc_exclude_circle; // Colour for squares in the exclusion radius
-    unsigned    tc_dangerous;   // Colour for trapped squares, deep water, lava.
+    // Colour for squares which are safely traversable but that travel
+    // considers forbidden, either because they are themselves forbidden by
+    // travel options or exclusions or because they are only accessible through
+    // such squares.
+    unsigned    tc_forbidden;
+    // Colour for squares that are not safely traversable (e.g. deep water,
+    // lava, or traps)
+    unsigned    tc_dangerous;
     unsigned    tc_disconnected;// Areas that are completely disconnected.
     vector<text_pattern> auto_exclude; // Automatically set an exclusion
                                        // around certain monsters.
@@ -385,9 +410,16 @@ public:
     int         assign_item_slot;   // How free slots are assigned
     maybe_bool  show_god_gift;      // Show {god gift} in item names
 
-    bool        restart_after_game; // If true, Crawl will not close on game-end
+    maybe_bool  restart_after_game; // If true, Crawl will not close on game-end
+                                    // If maybe, Crawl will restart only if the
+                                    // CL options would bring up the startup
+                                    // menu.
     bool        restart_after_save; // .. or on save
+    bool        newgame_after_quit; // override the restart_after_game behavior
+                                    // to always start a new game on quit.
 
+    bool        name_bypasses_menu; // should the menu be skipped if there is
+                                    // a name set on game start
     bool        read_persist_options; // If true, Crawl will try to load
                                       // options from c_persist.options
 
@@ -411,6 +443,8 @@ public:
 
     int         level_map_cursor_step;  // The cursor increment in the level
                                         // map.
+
+    bool        use_modifier_prefix_keys; // Treat '/' as SHIFT and '*' as CTRL
 
     // If the player prefers to merge kill records, this option can do that.
     int         kill_map[KC_NCATEGORIES];
@@ -447,32 +481,37 @@ public:
 #endif  // WIZARD
 
 #ifdef USE_TILE
+    // TODO: have these present but ignored in non-tile builds
     string      tile_show_items; // show which item types in tile inventory
     bool        tile_skip_title; // wait for a key at title screen?
     bool        tile_menu_icons; // display icons in menus?
 
     // minimap colours
-    VColour     tile_player_col;
-    VColour     tile_monster_col;
-    VColour     tile_plant_col;
-    VColour     tile_item_col;
     VColour     tile_unseen_col;
     VColour     tile_floor_col;
     VColour     tile_wall_col;
     VColour     tile_mapped_floor_col;
     VColour     tile_mapped_wall_col;
     VColour     tile_door_col;
-    VColour     tile_downstairs_col;
+    VColour     tile_item_col;
+    VColour     tile_monster_col;
+    VColour     tile_plant_col;
     VColour     tile_upstairs_col;
+    VColour     tile_downstairs_col;
     VColour     tile_branchstairs_col;
-    VColour     tile_portal_col;
     VColour     tile_feature_col;
-    VColour     tile_trap_col;
     VColour     tile_water_col;
-    VColour     tile_deep_water_col;
     VColour     tile_lava_col;
-    VColour     tile_excluded_col;
+    VColour     tile_trap_col;
     VColour     tile_excl_centre_col;
+    VColour     tile_excluded_col;
+    VColour     tile_player_col;
+    VColour     tile_deep_water_col;
+    VColour     tile_portal_col;
+    VColour     tile_transporter_col;
+    VColour     tile_transporter_landing_col;
+    VColour     tile_explore_horizon_col;
+
     VColour     tile_window_col;
 #ifdef USE_TILE_LOCAL
     // font settings
@@ -618,5 +657,3 @@ static inline short macro_colour(short col)
     ASSERT(col < NUM_TERM_COLOURS);
     return col < 0 ? col : Options.colour[ col ];
 }
-
-#endif

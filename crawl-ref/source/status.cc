@@ -5,12 +5,14 @@
 #include "areas.h"
 #include "branch.h"
 #include "cloud.h"
+#include "duration-type.h"
 #include "env.h"
 #include "evoke.h"
 #include "food.h"
 #include "god-abil.h"
 #include "god-passive.h"
 #include "item-prop.h"
+#include "level-state-type.h"
 #include "mon-transit.h" // untag_followers() in duration-data
 #include "mutation.h"
 #include "options.h"
@@ -217,7 +219,7 @@ bool fill_status_info(int status, status_info* inf)
         break;
 
     case DUR_NO_POTIONS:
-        if (you_foodless(true))
+        if (you_foodless())
             inf->light_colour = DARKGREY;
         break;
 
@@ -392,18 +394,6 @@ bool fill_status_info(int status, status_info* inf)
         _describe_stat_zero(inf, STAT_DEX);
         break;
 
-#if TAG_MAJOR_VERSION == 34
-    case STATUS_FIREBALL:
-        if (you.attribute[ATTR_DELAYED_FIREBALL])
-        {
-            inf->light_colour = LIGHTMAGENTA;
-            inf->light_text   = "Fball";
-            inf->short_text   = "delayed fireball";
-            inf->long_text    = "You have a stored fireball ready to release.";
-        }
-        break;
-#endif
-
     case STATUS_BONE_ARMOUR:
         if (you.attribute[ATTR_BONE_ARMOUR] > 0)
         {
@@ -415,9 +405,19 @@ bool fill_status_info(int status, status_info* inf)
     case STATUS_CONSTRICTED:
         if (you.is_constricted())
         {
+            // Our constrictor isn't, valid so don't report this status.
+            if (you.has_invalid_constrictor())
+                return false;
+
+            const monster * const cstr = monster_by_mid(you.constricted_by);
+            ASSERT(cstr);
+
+            const bool damage =
+                cstr->constriction_does_damage(you.is_directly_constricted());
+
             inf->light_colour = YELLOW;
-            inf->light_text   = you.held == HELD_MONSTER ? "Held" : "Constr";
-            inf->short_text   = you.held == HELD_MONSTER ? "held" : "constricted";
+            inf->light_text   = damage ? "Constr"      : "Held";
+            inf->short_text   = damage ? "constricted" : "held";
         }
         break;
 
@@ -425,14 +425,48 @@ bool fill_status_info(int status, status_info* inf)
         _describe_terrain(inf);
         break;
 
-    // Silenced by an external source.
+    // Also handled by DUR_SILENCE, see duration-data.h
     case STATUS_SILENCE:
         if (silenced(you.pos()) && !you.duration[DUR_SILENCE])
         {
-            inf->light_colour = LIGHTRED;
-            inf->light_text   = "Sil";
+            // Only display the status light if not using the noise bar.
+            if (Options.equip_bar)
+            {
+                inf->light_colour = LIGHTRED;
+                inf->light_text   = "Sil";
+            }
             inf->short_text   = "silenced";
             inf->long_text    = "You are silenced.";
+        }
+        if (Options.equip_bar && you.duration[DUR_SILENCE])
+        {
+            inf->light_colour = LIGHTMAGENTA;
+            inf->light_text = "Sil";
+        }
+        break;
+
+    case STATUS_SERPENTS_LASH:
+        if (you.attribute[ATTR_SERPENTS_LASH] > 0)
+        {
+            inf->light_colour = WHITE;
+            inf->light_text
+               = make_stringf("Lash (%u)",
+                              you.attribute[ATTR_SERPENTS_LASH]);
+            inf->short_text = "serpent's lash";
+            inf->long_text = "You are moving at supernatural speed.";
+        }
+        break;
+
+    case STATUS_HEAVENLY_STORM:
+        if (you.attribute[ATTR_HEAVENLY_STORM] > 0)
+        {
+            inf->light_colour = WHITE;
+            inf->light_text
+               = make_stringf("Storm (%u)",
+                              you.attribute[ATTR_HEAVENLY_STORM]);
+            inf->short_text = "heavenly storm";
+            inf->long_text = "Heavenly clouds are increasing your damage and "
+                             "accuracy.";
         }
         break;
 
@@ -480,7 +514,14 @@ bool fill_status_info(int status, status_info* inf)
         break;
 
     case STATUS_DRAINED:
-        if (you.attribute[ATTR_XP_DRAIN] > 250)
+        if (you.attribute[ATTR_XP_DRAIN] > 450)
+        {
+            inf->light_colour = MAGENTA;
+            inf->light_text   = "Drain";
+            inf->short_text   = "extremely drained";
+            inf->long_text    = "Your life force is extremely drained.";
+        }
+        else if (you.attribute[ATTR_XP_DRAIN] > 250)
         {
             inf->light_colour = RED;
             inf->light_text   = "Drain";
@@ -761,9 +802,6 @@ static void _describe_glow(status_info* inf)
         inf->light_colour = LIGHTGREY;
     else
         inf->light_colour = DARKGREY;
-#if TAG_MAJOR_VERSION == 34
-    if (cont > 1 || you.species != SP_DJINNI)
-#endif
     inf->light_text = "Contam";
 
     /// Mappings from contamination levels to descriptions.
@@ -1017,7 +1055,7 @@ static void _describe_missiles(status_info* inf)
     }
     else
     {
-        bool perm = player_mutation_level(MUT_DISTORTION_FIELD) == 3
+        bool perm = you.get_mutation_level(MUT_DISTORTION_FIELD) == 3
                     || you.wearing_ego(EQ_ALL_ARMOUR, SPARM_REPULSION)
                     || you.scan_artefacts(ARTP_RMSL)
                     || have_passive(passive_t::upgraded_storm_shield);

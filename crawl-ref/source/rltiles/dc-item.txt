@@ -151,9 +151,11 @@ blowgun2
 
 sling1 WPN_HUNTING_SLING
 sling2
+sling3
 %rim 0
-fustibalus WPN_FUSTIBALUS
+fustibalus1 WPN_FUSTIBALUS
 fustibalus2
+fustibalus3
 
 shortbow1 WPN_SHORTBOW
 shortbow2
@@ -387,6 +389,9 @@ gold_dragon_armour ARM_GOLD_DRAGON_ARMOUR
 swamp_dragon_armour ARM_SWAMP_DRAGON_ARMOUR
 pearl_dragon_armour ARM_PEARL_DRAGON_ARMOUR
 
+deep_troll_leather DEEP_TROLL_LEATHER
+iron_troll_leather IRON_TROLL_LEATHER
+
 %rim 1
 cloak1_leather ARM_CLOAK
 cloak2
@@ -394,7 +399,9 @@ cloak3
 cloak4
 
 scarf1 ARM_SCARF
-scarf2
+scarf2_1
+scarf2_2
+scarf2_3
 scarf3
 
 %sdir item/armour/bardings
@@ -498,7 +505,8 @@ i-reflection BRAND_ARM_REFLECTION
 i-spirit BRAND_ARM_SPIRIT_SHIELD
 i-archery BRAND_ARM_ARCHERY
 i-jumping BRAND_ARM_JUMPING
-i-repulsion BRAND_ARM_REPULSION BRAND_ARM_LAST
+i-repulsion BRAND_ARM_REPULSION
+i-cloud-immune BRAND_ARM_CLOUD_IMMUNE BRAND_ARM_LAST
 
 ###########OBJ_WANDS
 %sdir item/wand
@@ -529,12 +537,12 @@ i-heal_wounds WAND_REMOVEME6
 i-paralysis WAND_PARALYSIS
 i-flame WAND_REMOVEME3
 i-flame WAND_REMOVEME4
-i-confusion WAND_CONFUSION
+i-confusion WAND_REMOVEME10
 i-flame WAND_REMOVEME5
 i-digging WAND_DIGGING
 i-iceblast WAND_ICEBLAST
 i-teleportation WAND_REMOVEME8
-i-lightning WAND_LIGHTNING
+i-lightning WAND_REMOVEME11
 i-polymorph WAND_POLYMORPH
 i-enslavement WAND_ENSLAVEMENT
 i-acid WAND_ACID
@@ -545,24 +553,25 @@ i-scattershot WAND_SCATTERSHOT WAND_ID_LAST
 
 #################OBJ_FOOD
 %sdir item/food
-meat_ration FOOD_MEAT_RATION UNSEEN_FOOD
-bread_ration FOOD_BREAD_RATION
-
+bread_ration FOOD_RATION UNSEEN_FOOD FOOD_RATION_FIRST FOOD_RATION_INVENTORY
+meat_ration
+cheese
+honeycomb FOOD_HONEYCOMB
+sausage
+pizza FOOD_PIZZA
+beef_jerky
 apple FOOD_FRUIT_FIRST FOOD_APPLE
 apricot
 banana
 choko
 grape
 lemon
-lychee
 orange
 pear
-rambutan
 snozzcumber
 strawberry FOOD_FRUIT_LAST
-fruit FOOD_FRUIT_INVENTORY
+fruit FOOD_FRUIT_INVENTORY FOOD_RATION_LAST
 
-lump_of_royal_jelly FOOD_ROYAL_JELLY
 %rim 0
 bone_humanoid1 FOOD_BONE_HUMANOID
 bone_humanoid2
@@ -575,12 +584,10 @@ bone4
 %rim 1
 chunk FOOD_CHUNK
 %back chunk
-chunk_brands/i-mutation FOOD_CHUNK_MUTAGENIC
 chunk_brands/i-decay FOOD_CHUNK_ROTTING
 chunk_brands/i-forbidden FOOD_CHUNK_FORBIDDEN
 chunk_brands/i-inedible FOOD_CHUNK_INEDIBLE
 %back none
-chunk_brands/i-mutation FOOD_MUTAGENIC
 chunk_brands/i-decay FOOD_ROTTING
 chunk_brands/i-forbidden FOOD_FORBIDDEN
 chunk_brands/i-inedible FOOD_INEDIBLE
@@ -625,10 +632,12 @@ i-fog SCR_FOG
 %back scroll-cyan
 i-acquirement SCR_ACQUIREMENT
 %back scroll-green
-#if TAG_MAJOR_VERSION == 34 # Remove the two i-enchant-weapon
+# Remove enchant weapon II when TAG_MAJOR_VERSION > 34
 i-enchant-weapon SCR_ENCHANT_WEAPON_II
 i-brand-weapon SCR_BRAND_WEAPON
+# Remove recharging when TAG_MAJOR_VERSION > 34
 i-recharging SCR_RECHARGING
+# Remove enchant weapon III when TAG_MAJOR_VERSION > 34
 i-enchant-weapon SCR_ENCHANT_WEAPON_III
 %back scroll-red
 i-holy_word SCR_HOLY_WORD
@@ -774,7 +783,7 @@ sun
 # remove REMOVEMEs when TAG_MAJOR_VERSION > 34
 i-rage AMU_RAGE AMU_ID_FIRST
 i-harm AMU_HARM
-i-dismissal AMU_DISMISSAL
+i-acrobat AMU_ACROBAT
 i-m-regeneration AMU_MANA_REGENERATION
 i-gourmand AMU_THE_GOURMAND
 i-rage AMU_REMOVEME1
@@ -962,6 +971,7 @@ error ROD_VENOM ROD_ID_LAST
 %sdir item/misc
 misc_orb ORB UNSEEN_ORB
 misc_orb2
+uncollected_orb UNCOLLECTED_ORB
 
 #OBJ_MISCELLANY
 misc_bottle MISC_BOTTLED_EFREET
@@ -1131,6 +1141,27 @@ rune_demonic_4
 rune_demonic_5
 rune_demonic_6
 rune_elven RUNE_ELVEN
+
+%sdir item/misc/uncollected_runes
+generic MISC_UNCOLLECTED_RUNE_OF_ZOT
+rune_tartarus UNCOLLECTED_RUNE_TARTARUS
+rune_cocytus UNCOLLECTED_RUNE_COCYTUS
+rune_dis UNCOLLECTED_RUNE_DIS
+rune_gehenna UNCOLLECTED_RUNE_GEHENNA
+rune_cerebov UNCOLLECTED_RUNE_CEREBOV
+rune_gloorx_vloq UNCOLLECTED_RUNE_GLOORX_VLOQ
+rune_mnoleg UNCOLLECTED_RUNE_MNOLEG
+rune_lom_lobon UNCOLLECTED_RUNE_LOM_LOBON
+rune_snake UNCOLLECTED_RUNE_SNAKE
+rune_swamp UNCOLLECTED_RUNE_SWAMP
+rune_shoals UNCOLLECTED_RUNE_SHOALS
+rune_spider UNCOLLECTED_RUNE_SPIDER
+rune_slime UNCOLLECTED_RUNE_SLIME
+rune_vaults UNCOLLECTED_RUNE_VAULTS
+rune_tomb UNCOLLECTED_RUNE_TOMB
+rune_abyss UNCOLLECTED_RUNE_ABYSS
+rune_demonic UNCOLLECTED_RUNE_DEMONIC
+rune_elven UNCOLLECTED_RUNE_ELVEN
 
 #OBJ_CORPSES
 #handled in dc-corpse.txt

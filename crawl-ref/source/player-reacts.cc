@@ -70,7 +70,9 @@
 #include "item-name.h"
 #include "item-prop.h"
 #include "items.h"
+#include "item-status-flag-type.h"
 #include "item-use.h"
+#include "level-state-type.h"
 #include "libutil.h"
 #include "luaterp.h"
 #include "macro.h"
@@ -346,7 +348,7 @@ static void _end_horror()
  */
 static void _update_cowardice()
 {
-    if (!player_mutation_level(MUT_COWARDICE))
+    if (!you.has_mutation(MUT_COWARDICE))
     {
         // If the player somehow becomes sane again, handle that
         _end_horror();
@@ -463,8 +465,11 @@ void player_reacts_to_monsters()
 
     check_monster_detect();
 
-    if (have_passive(passive_t::detect_items) || you.mutation[MUT_JELLY_GROWTH])
+    if (have_passive(passive_t::detect_items) || you.has_mutation(MUT_JELLY_GROWTH)
+        || you.get_mutation_level(MUT_STRONG_NOSE) > 0)
+    {
         detect_items(-1);
+    }
 
     _decrement_paralysis(you.time_taken);
     _decrement_petrification(you.time_taken);
@@ -572,7 +577,7 @@ static void _decrement_durations()
     if (you.gourmand())
     {
         // Innate gourmand is always fully active.
-        if (player_mutation_level(MUT_GOURMAND) > 0)
+        if (you.has_mutation(MUT_GOURMAND))
             you.duration[DUR_GOURMAND] = GOURMAND_MAX;
         else if (you.duration[DUR_GOURMAND] < GOURMAND_MAX && coinflip())
             you.duration[DUR_GOURMAND] += delay;
@@ -601,29 +606,6 @@ static void _decrement_durations()
     // and liquefying radius.
     if (you.duration[DUR_LIQUEFYING])
         invalidate_agrid();
-
-    if (you.duration[DUR_DIVINE_SHIELD] > 0)
-    {
-        if (you.duration[DUR_DIVINE_SHIELD] > 1)
-        {
-            you.duration[DUR_DIVINE_SHIELD] -= delay;
-            if (you.duration[DUR_DIVINE_SHIELD] <= 1)
-            {
-                you.duration[DUR_DIVINE_SHIELD] = 1;
-                mprf(MSGCH_DURATION, "Your divine shield starts to fade.");
-            }
-        }
-
-        if (you.duration[DUR_DIVINE_SHIELD] == 1 && !one_chance_in(3))
-        {
-            you.redraw_armour_class = true;
-            if (--you.attribute[ATTR_DIVINE_SHIELD] == 0)
-            {
-                you.duration[DUR_DIVINE_SHIELD] = 0;
-                mprf(MSGCH_DURATION, "Your divine shield fades away.");
-            }
-        }
-    }
 
     // FIXME: [ds] Remove this once we've ensured durations can never go < 0?
     if (you.duration[DUR_TRANSFORMATION] <= 0
@@ -684,7 +666,7 @@ static void _decrement_durations()
     dec_ambrosia_player(delay);
     dec_channel_player(delay);
     dec_slow_player(delay);
-    dec_exhaust_player(delay);
+    dec_berserk_recovery_player(delay);
     dec_haste_player(delay);
 
     if (you.duration[DUR_LIQUEFYING] && !you.stand_on_solid_ground())
@@ -820,7 +802,7 @@ static void _decrement_durations()
     }
 
     if (you.duration[DUR_GRASPING_ROOTS])
-        check_grasping_roots(&you);
+        check_grasping_roots(you);
 
     if (you.attribute[ATTR_NEXT_RECALL_INDEX] > 0)
         do_recall(delay);
@@ -835,7 +817,8 @@ static void _decrement_durations()
         doom_howl(min(delay, you.duration[DUR_DOOM_HOWL]));
 
     dec_elixir_player(delay);
-    you.maybe_degrade_bone_armour(delay);
+    extract_manticore_spikes("You carefully extract the barbed spikes from "
+                             "your body.");
 
     if (!env.sunlight.empty())
         process_sunlights();
@@ -852,6 +835,12 @@ static void _decrement_durations()
         activate_sanguine_armour();
     else if (!sanguine_armour_is_valid && you.duration[DUR_SANGUINE_ARMOUR])
         you.duration[DUR_SANGUINE_ARMOUR] = 1; // expire
+
+    if (you.attribute[ATTR_HEAVENLY_STORM]
+        && !you.duration[DUR_HEAVENLY_STORM])
+    {
+        end_heavenly_storm(); // we shouldn't hit this, but just in case
+    }
 
     // these should be after decr_ambrosia, transforms, liquefying, etc.
     for (int i = 0; i < NUM_DURATIONS; ++i)
@@ -945,7 +934,7 @@ static void _regenerate_hp_and_mp(int delay)
     while (you.hit_points_regeneration >= 100)
     {
         // at low mp, "mana link" restores mp in place of hp
-        if (player_mutation_level(MUT_MANA_LINK)
+        if (you.has_mutation(MUT_MANA_LINK)
             && !x_chance_in_y(you.magic_points, you.max_magic_points))
         {
             inc_mp(1);
@@ -957,7 +946,7 @@ static void _regenerate_hp_and_mp(int delay)
 
     ASSERT_RANGE(you.hit_points_regeneration, 0, 100);
 
-    update_regen_amulet_attunement();
+    update_amulet_attunement_by_health();
 
     // MP Regeneration
     if (!player_regenerates_mp())
@@ -993,12 +982,7 @@ void player_reacts()
     mprf(MSGCH_DIAGNOSTICS, "stealth: %d", stealth);
 #endif
 
-#if TAG_MAJOR_VERSION == 34
-    if (you.species == SP_LAVA_ORC)
-        temperature_check();
-#endif
-
-    if (player_mutation_level(MUT_DEMONIC_GUARDIAN))
+    if (you.has_mutation(MUT_DEMONIC_GUARDIAN))
         check_demonic_guardian();
 
     _check_equipment_conducts();

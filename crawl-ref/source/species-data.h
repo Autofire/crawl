@@ -1,49 +1,59 @@
-enum species_flag
-{
-    SPF_NONE        = 0,
-    SPF_ELVEN       = 1 << 0, /// If this species counts as an elf
-    SPF_DRACONIAN   = 1 << 1, /// If this is a draconian subspecies
-    SPF_ORCISH      = 1 << 2, /// If this species is a kind of orc
-    SPF_NO_HAIR     = 1 << 3, /// If members of the species are hairless
-    SPF_SMALL_TORSO = 1 << 4, /// Torso is smaller than body
-};
-DEF_BITFIELD(species_flags, species_flag);
-
-struct level_up_mutation
-{
-    mutation_type mut; ///< What mutation to give
-    int mut_level; ///< How much to give
-    int xp_level; ///< When to give it (if 1, is a starting mutation)
-};
-
-struct species_def
-{
-    const char* abbrev; ///< Two-letter abbreviation
-    const char* name; ///< Main name
-    const char* adj_name; ///< Adjectival form of name; if null, use name
-    const char* genus_name; ///< Genus name; if null, use name
-    species_flags flags; ///< Miscellaneous flags
-    // The following three need to be 2 lines after the name for gen-apt.pl:
-    int xp_mod; ///< Experience level modifier
-    int hp_mod; ///< HP modifier (in tenths)
-    int mp_mod; ///< MP modifier
-    int mr_mod; ///< MR modifier (multiplied by XL for base MR)
-    monster_type monster_species; ///< Corresponding monster (for display)
-    habitat_type habitat; ///< Where it can live; HT_WATER -> no penalties
-    undead_state_type undeadness; ///< What kind of undead (if any)
-    size_type size; ///< Size of body
-    int s, i, d; ///< Starting stats contribution
-    set<stat_type> level_stats; ///< Which stats to gain on level-up
-    int how_often; ///< When to level-up stats
-    vector<level_up_mutation> level_up_mutations; ///< Mutations on level-up
-    vector<string> verbose_fake_mutations; ///< Additional information on 'A'
-    vector<string> terse_fake_mutations; ///< Additional information on '%'
-    vector<job_type> recommended_jobs; ///< Which jobs are "good" for it
-    vector<skill_type> recommended_weapons; ///< Which weapons types are "good"
-};
-
+/*
+ * Entry format:
+ *   row  0: species enum
+ *   row  1: two-letter abbreviation
+ *   row  2: name noun, name adjective, genus (null to use name)
+ *   row  3: flags (SPF_*)
+ *   row  4: XP "aptitude", HP mod (in tenths), MP mod, MR per XL
+ *   row  5: corresponding monster
+ *   row  6: habitat, undead state, size
+ *   row  7: starting strength, intelligence, dexterity  // sum
+ *   row  8: { level-up stats }, level for stat increase
+ *   row  9: { { mutation, mutation level, XP level }, ... }
+ *   row 10: { fake mutation messages for A screen }
+ *   row 11: { fake mutation names for % screen }
+ *   row 12: recommended jobs for character selection
+ *   row 13: recommended weapons for character selection
+ *
+ * Rows 9-13 may span multiple lines if necessary.
+ */
 static const map<species_type, species_def> species_data =
 {
+
+{ SP_BARACHI, {
+    "Ba",
+    "Barachi", "Barachian", "Frog",
+    SPF_NO_HAIR,
+    0, 0, 0, 3,
+    MONS_BARACHI,
+    HT_WATER, US_ALIVE, SIZE_MEDIUM,
+    9, 8, 7, // 24
+    { STAT_STR, STAT_INT, STAT_DEX }, 4,
+    { { MUT_SLOW, 1, 1 }, { MUT_HOP, 1, 1}, {MUT_HOP, 1, 13}, },
+    { "Shadows flee at your approach. (+LOS)", "You can swim through water.", },
+    { "+LOS", "swims", },
+    { JOB_FIGHTER, JOB_BERSERKER, JOB_SKALD, JOB_SUMMONER, JOB_ICE_ELEMENTALIST },
+    { SK_MACES_FLAILS, SK_AXES, SK_POLEARMS, SK_LONG_BLADES, SK_STAVES,
+      SK_BOWS, SK_CROSSBOWS, SK_SLINGS },
+} },
+
+{ SP_GNOLL, {
+    "Gn",
+    "Gnoll", nullptr, nullptr,
+    SPF_NONE,
+    0, 0, 0, 3,
+    MONS_GNOLL,
+    HT_LAND, US_ALIVE, SIZE_MEDIUM,
+    10, 10, 10, // 30
+    { STAT_STR, STAT_INT, STAT_DEX }, 4,
+    { { MUT_STRONG_NOSE, 1, 1 },  { MUT_FANGS, 1, 1 }, },
+    { "Your experience applies equally to all skills."},
+    { "distributed training", },
+    { JOB_SKALD, JOB_WARPER, JOB_ARCANE_MARKSMAN, JOB_TRANSMUTER,
+      JOB_WANDERER },
+    { SK_MACES_FLAILS, SK_AXES, SK_POLEARMS, SK_LONG_BLADES, SK_STAVES,
+      SK_BOWS, SK_CROSSBOWS, SK_SLINGS },
+} },
 
 { SP_CENTAUR, {
     "Ce",
@@ -72,7 +82,7 @@ static const map<species_type, species_def> species_data =
     HT_LAND, US_ALIVE, SIZE_MEDIUM,
     11, 8, 8, // 27
     { STAT_STR, STAT_INT }, 4,
-    { { MUT_SLOW_REGENERATION, 3, 1 }, { MUT_PASSIVE_MAPPING, 1, 1 },
+    { { MUT_NO_REGENERATION, 1, 1 }, { MUT_PASSIVE_MAPPING, 1, 1 },
       { MUT_PASSIVE_MAPPING, 1, 9 }, { MUT_PASSIVE_MAPPING, 1, 18 },
       { MUT_NEGATIVE_ENERGY_RESISTANCE, 1, 14 }, },
     { "You are resistant to damage.",
@@ -316,7 +326,7 @@ static const map<species_type, species_def> species_data =
     HT_LAND, US_ALIVE, SIZE_LITTLE,
     4, 9, 11, // 24
     { STAT_INT, STAT_DEX }, 5,
-    { { MUT_CARNIVOROUS, 3, 1 }, { MUT_FAST, 1, 1 }, { MUT_FANGS, 3, 1 },
+    { { MUT_CARNIVOROUS, 1, 1 }, { MUT_FAST, 1, 1 }, { MUT_FANGS, 3, 1 },
       { MUT_SHAGGY_FUR, 1, 1 }, { MUT_ACUTE_VISION, 1, 1 }, { MUT_PAWS, 1, 1 },
       { MUT_SLOW_METABOLISM, 1, 1 }, { MUT_CLAWS, 1, 1 },
       { MUT_SHAGGY_FUR, 1, 6 }, { MUT_SHAGGY_FUR, 1, 12 }, },
@@ -349,44 +359,6 @@ static const map<species_type, species_def> species_data =
       SK_CROSSBOWS, SK_SLINGS },
 } },
 
-{ SP_BARACHIAN, {
-    "Ba",
-    "Barachian", nullptr, "Frog",
-    SPF_NO_HAIR,
-    0, 0, 0, 3,
-    MONS_BARACHIAN,
-    HT_WATER, US_ALIVE, SIZE_MEDIUM,
-    6, 6, 6, // 18
-    { STAT_STR, STAT_INT, STAT_DEX }, 5,
-    { { MUT_SLOW, 1, 1 }, { MUT_HOP, 1, 1}, {MUT_HOP, 1, 13}, },
-    { "You can swim through water.", },
-    { "swims", },
-    { JOB_FIGHTER, JOB_BERSERKER, JOB_SKALD, JOB_SUMMONER, JOB_ICE_ELEMENTALIST },
-    { SK_MACES_FLAILS, SK_AXES, SK_POLEARMS, SK_LONG_BLADES, SK_STAVES,
-      SK_BOWS, SK_CROSSBOWS, SK_SLINGS },
-} },
-
-{ SP_GHOUL, {
-    "Gh",
-    "Ghoul", "Ghoulish", nullptr,
-    SPF_NO_HAIR,
-    0, 1, -1, 3,
-    MONS_GHOUL,
-    HT_LAND, US_HUNGRY_DEAD, SIZE_MEDIUM,
-    11, 3, 4, // 18
-    { STAT_STR }, 5,
-    { { MUT_CARNIVOROUS, 3, 1 }, { MUT_NEGATIVE_ENERGY_RESISTANCE, 3, 1 },
-      { MUT_TORMENT_RESISTANCE, 1, 1 },
-      { MUT_SLOW_REGENERATION, 1, 1 }, { MUT_COLD_RESISTANCE, 1, 1 },
-      { MUT_CLAWS, 1, 1 }, { MUT_UNBREATHING, 1, 1 }, },
-    { "Your body is rotting away.",
-      "You thrive on raw meat." },
-    { "rotting body" },
-    { JOB_WARPER, JOB_GLADIATOR, JOB_MONK, JOB_NECROMANCER,
-      JOB_ICE_ELEMENTALIST, JOB_EARTH_ELEMENTALIST },
-    { SK_UNARMED_COMBAT, SK_BOWS, SK_CROSSBOWS, SK_SLINGS },
-} },
-
 { SP_GARGOYLE, {
     "Gr",
     "Gargoyle", nullptr, nullptr,
@@ -405,6 +377,27 @@ static const map<species_type, species_def> species_data =
       JOB_FIRE_ELEMENTALIST, JOB_ICE_ELEMENTALIST, JOB_EARTH_ELEMENTALIST,
       JOB_VENOM_MAGE },
     { SK_MACES_FLAILS, SK_STAVES, SK_BOWS, SK_CROSSBOWS },
+} },
+
+{ SP_GHOUL, {
+    "Gh",
+    "Ghoul", "Ghoulish", nullptr,
+    SPF_NO_HAIR,
+    0, 1, -1, 3,
+    MONS_GHOUL,
+    HT_LAND, US_HUNGRY_DEAD, SIZE_MEDIUM,
+    11, 3, 4, // 18
+    { STAT_STR }, 5,
+    { { MUT_CARNIVOROUS, 1, 1 }, { MUT_NEGATIVE_ENERGY_RESISTANCE, 3, 1 },
+      { MUT_TORMENT_RESISTANCE, 1, 1 },
+      { MUT_INHIBITED_REGENERATION, 1, 1 }, { MUT_COLD_RESISTANCE, 1, 1 },
+      { MUT_CLAWS, 1, 1 }, { MUT_UNBREATHING, 1, 1 }, },
+    { "Your body is rotting away.",
+      "You thrive on raw meat." },
+    { "rotting body" },
+    { JOB_WARPER, JOB_GLADIATOR, JOB_MONK, JOB_NECROMANCER,
+      JOB_ICE_ELEMENTALIST, JOB_EARTH_ELEMENTALIST },
+    { SK_UNARMED_COMBAT, SK_BOWS, SK_CROSSBOWS, SK_SLINGS },
 } },
 
 { SP_HALFLING, {
@@ -467,7 +460,7 @@ static const map<species_type, species_def> species_data =
     HT_LAND, US_ALIVE, SIZE_SMALL,
     5, 9, 10, // 24
     { STAT_STR, STAT_INT, STAT_DEX }, 5,
-    { { MUT_CARNIVOROUS, 3, 1 }, },
+    { { MUT_CARNIVOROUS, 1, 1 }, },
     {},
     {},
     { JOB_HUNTER, JOB_BERSERKER, JOB_ARCANE_MARKSMAN, JOB_ENCHANTER,
@@ -568,7 +561,7 @@ static const map<species_type, species_def> species_data =
     {},
     { JOB_HUNTER, JOB_BERSERKER, JOB_ARCANE_MARKSMAN, JOB_WIZARD,
       JOB_FIRE_ELEMENTALIST },
-    { SK_MACES_FLAILS, SK_POLEARMS, SK_STAVES },
+    { SK_MACES_FLAILS, SK_POLEARMS, SK_STAVES, SK_AXES },
 } },
 
 { SP_OCTOPODE, {
@@ -600,7 +593,7 @@ static const map<species_type, species_def> species_data =
     HT_LAND, US_ALIVE, SIZE_LITTLE,
     4, 9, 11, // 24
     { STAT_INT, STAT_DEX }, 5,
-    { { MUT_FAST, 3, 1 }, { MUT_HERBIVOROUS, 3, 1 },
+    { { MUT_FAST, 3, 1 }, { MUT_HERBIVOROUS, 1, 1 },
       { MUT_ACUTE_VISION, 1, 1 }, { MUT_SLOW_METABOLISM, 2, 1 }, },
     {},
     {},
@@ -728,12 +721,9 @@ static const map<species_type, species_def> species_data =
     HT_LAND, US_ALIVE, SIZE_MEDIUM,
     8, 8, 8, // 24
     { STAT_STR, STAT_INT, STAT_DEX }, 4,
-    { { MUT_NEGATIVE_ENERGY_RESISTANCE, 3, 1 }, },
-    { "You are immune to all types of fire, even holy and hellish.",
-      "You are vulnerable to cold.",
-      "You need no food.",
-      "You have no legs." },
-    { "fire immunity", "cold vulnerability" },
+    {},
+    {},
+    {},
     {}, // not a starting race
     {}, // not a starting race
 } },

@@ -76,7 +76,7 @@ void player::moveto(const coord_def &c, bool clear_net)
     crawl_view.set_player_at(c);
     set_position(c);
 
-    clear_far_constrictions();
+    clear_invalid_constrictions();
     end_searing_ray();
 }
 
@@ -159,7 +159,7 @@ int player::get_experience_level() const
 
 int player::get_max_xl() const
 {
-    return 27 - player_mutation_level(MUT_INEXPERIENCED) * RU_SAC_XP_LEVELS;
+    return 27 - get_mutation_level(MUT_INEXPERIENCED) * RU_SAC_XP_LEVELS;
 }
 
 bool player::can_pass_through_feat(dungeon_feature_type grid) const
@@ -242,7 +242,7 @@ random_var player::attack_delay(const item_def *projectile, bool rescale) const
     const int DELAY_SCALE = 20;
     const int base_shield_penalty = adjusted_shield_penalty(DELAY_SCALE);
 
-    if (projectile && is_launched(this, weap, *projectile) == LRET_THROWN)
+    if (projectile && is_launched(this, weap, *projectile) == launch_retval::THROWN)
     {
         // Thrown weapons use 10 + projectile damage to determine base delay.
         const skill_type wpn_skill = SK_THROWING;
@@ -301,8 +301,10 @@ random_var player::attack_delay(const item_def *projectile, bool rescale) const
         attk_delay = div_rand_round(attk_delay, 2);
     }
 
-    // see comment on player.cc:player_speed
-    return rv::max(div_rand_round(attk_delay * you.time_taken, 10),
+    // TODO: does this really have to depend on `you.time_taken`?  In basic
+    // cases at least, `you.time_taken` is just `player_speed()`. See
+    // `_prep_input`.
+    return rv::max(div_rand_round(attk_delay * you.time_taken, BASELINE_DELAY),
                    random_var(2));
 }
 
@@ -352,7 +354,7 @@ bool player::can_wield(const item_def& item, bool ignore_curse,
 
     if (two_handed && (
         (!ignore_shield && shield())
-        || player_mutation_level(MUT_MISSING_HAND)))
+        || get_mutation_level(MUT_MISSING_HAND)))
     {
         return false;
     }
@@ -409,7 +411,7 @@ bool player::could_wield(const item_def &item, bool ignore_brand,
         return false;
     }
 
-    if (player_mutation_level(MUT_MISSING_HAND)
+    if (get_mutation_level(MUT_MISSING_HAND)
         && you.hands_reqd(item) == HANDS_TWO)
     {
         return false;
@@ -499,7 +501,7 @@ string player::hand_name(bool plural, bool *can_plural) const
     bool _can_plural;
     if (can_plural == nullptr)
         can_plural = &_can_plural;
-    *can_plural = !player_mutation_level(MUT_MISSING_HAND);
+    *can_plural = !get_mutation_level(MUT_MISSING_HAND);
 
     const string singular = _hand_name_singular();
     if (plural && *can_plural)
@@ -519,7 +521,7 @@ static string _foot_name_singular(bool *can_plural)
     if (!get_form()->foot_name.empty())
         return get_form()->foot_name;
 
-    if (player_mutation_level(MUT_HOOVES) >= 3)
+    if (you.get_mutation_level(MUT_HOOVES) >= 3)
         return "hoof";
 
     if (you.has_usable_talons())
@@ -663,8 +665,8 @@ void player::attacking(actor *other, bool ranged)
     if (ranged || mons_is_firewood(*(monster*) other))
         return;
 
-    const int chance = pow(3, player_mutation_level(MUT_BERSERK) - 1);
-    if (player_mutation_level(MUT_BERSERK) && x_chance_in_y(chance, 100))
+    const int chance = pow(3, get_mutation_level(MUT_BERSERK) - 1);
+    if (has_mutation(MUT_BERSERK) && x_chance_in_y(chance, 100))
         go_berserk(false);
 }
 
@@ -749,15 +751,6 @@ bool player::go_berserk(bool intentional, bool potion)
 
     you.redraw_quiver = true; // Account for no firing.
 
-#if TAG_MAJOR_VERSION == 34
-    if (you.species == SP_LAVA_ORC)
-    {
-        mpr("You burn with rage!");
-        // This will get sqrt'd later, so.
-        you.temperature = TEMP_MAX;
-    }
-#endif
-
     if (player_equip_unrand(UNRAND_ZEALOT_SWORD))
         for (monster_near_iterator mi(you.pos(), LOS_NO_TRANS); mi; ++mi)
             if (mi->friendly())
@@ -772,32 +765,28 @@ bool player::can_go_berserk() const
 }
 
 bool player::can_go_berserk(bool intentional, bool potion, bool quiet,
-                            string *reason) const
+                            string *reason, bool temp) const
 {
     const bool verbose = (intentional || potion) && !quiet;
     string msg;
     bool success = false;
 
-    if (berserk())
+    if (berserk() && temp)
         msg = "You're already berserk!";
-    else if (duration[DUR_EXHAUSTED])
-         msg = "You're too exhausted to go berserk.";
-    else if (duration[DUR_DEATHS_DOOR])
+    else if (duration[DUR_BERSERK_COOLDOWN] && temp)
+        msg = "You're still recovering from your berserk rage.";
+    else if (duration[DUR_DEATHS_DOOR] && temp)
         msg = "You can't enter a blood rage from death's door.";
-    else if (beheld() && !player_equip_unrand(UNRAND_DEMON_AXE))
+    else if (beheld() && !player_equip_unrand(UNRAND_DEMON_AXE) && temp)
         msg = "You are too mesmerised to rage.";
-    else if (afraid())
+    else if (afraid() && temp)
         msg = "You are too terrified to rage.";
-#if TAG_MAJOR_VERSION == 34
-    else if (you.species == SP_DJINNI)
-        msg = "Only creatures of flesh and blood can berserk.";
-#endif
-    else if (is_lifeless_undead())
+    else if (!intentional && !potion && clarity() && temp)
+        msg = "You're too calm and focused to rage.";
+    else if (is_lifeless_undead(temp))
         msg = "You cannot raise a blood rage in your lifeless body.";
     else if (stasis())
         msg = "Your stasis prevents you from going berserk.";
-    else if (!intentional && !potion && clarity())
-        msg = "You're too calm and focused to rage.";
     else
         success = true;
 
@@ -848,9 +837,20 @@ bool player::shove(const char* feat_name)
     return false;
 }
 
-int player::constriction_damage() const
+/*
+ * Calculate base constriction damage.
+ *
+ * @param direct True if this is for direct constriction, false otherwise (e.g.
+ *               Borg's Vile Clutch), false otherwise.
+ * @returns The base damage.
+ */
+int player::constriction_damage(bool direct) const
 {
-    return roll_dice(2, div_rand_round(strength(), 5));
+    if (direct)
+        return roll_dice(2, div_rand_round(strength(), 5));
+
+    return roll_dice(2, div_rand_round(70 +
+                calc_spell_power(SPELL_BORGNJORS_VILE_CLUTCH, true), 20));
 }
 
 /**

@@ -74,6 +74,7 @@
 #ifdef USE_TILE
  #include "tilepick.h"
 #endif
+#include "tiles-build-specific.h"
 #include "transform.h"
 #include "traps.h"
 #include "viewchar.h"
@@ -201,6 +202,7 @@ static void _ench_animation(int flavour, const monster* mon, bool force)
     case BEAM_INFESTATION:
     case BEAM_PAIN:
     case BEAM_AGONY:
+    case BEAM_VILE_CLUTCH:
         elem = ETC_UNHOLY;
         break;
     case BEAM_DISPEL_UNDEAD:
@@ -502,7 +504,8 @@ void zappy(zap_type z_type, int power, bool is_monster, bolt &pbolt)
     if (dam_calc)
         pbolt.damage = (*dam_calc)(power);
 
-    pbolt.origin_spell = zap_to_spell(z_type);
+    if (pbolt.origin_spell == SPELL_NO_SPELL)
+        pbolt.origin_spell = zap_to_spell(z_type);
 
     if (z_type == ZAP_BREATHE_FIRE && you.species == SP_RED_DRACONIAN
         && !is_monster)
@@ -693,6 +696,8 @@ void bolt::apply_beam_conducts()
             break;
         case BEAM_FIRE:
         case BEAM_STICKY_FLAME:
+        case BEAM_LAVA:
+        case BEAM_INNER_FLAME:
             did_god_conduct(DID_FIRE,
                             pierce || is_explosion ? 6 + random2(3)
                                                    : 2 + random2(3),
@@ -1609,16 +1614,9 @@ int mons_adjust_flavoured(monster* mons, bolt &pbolt, int hurted,
         break;
 
     case BEAM_AIR:
-        if (mons->res_wind())
-            hurted = 0;
-        else if (mons->airborne())
+        if (mons->airborne())
             hurted += hurted / 2;
-        if (!hurted)
-        {
-            if (doFlavouredEffects)
-                simple_monster_message(*mons, " is harmlessly tossed around.");
-        }
-        else if (original < hurted)
+        if (original < hurted)
         {
             if (doFlavouredEffects)
                 simple_monster_message(*mons, " gets badly buffeted.");
@@ -1653,7 +1651,7 @@ static bool _monster_resists_mass_enchantment(monster* mons,
     // Assuming that the only mass charm is control undead.
     if (wh_enchant == ENCH_CHARM)
     {
-        if (player_mutation_level(MUT_NO_LOVE))
+        if (you.get_mutation_level(MUT_NO_LOVE))
             return true;
 
         if (mons->friendly())
@@ -1789,7 +1787,7 @@ void bolt::apply_bolt_paralysis(monster* mons)
     if (!mons_is_immotile(*mons)
         && simple_monster_message(*mons, " suddenly stops moving!"))
     {
-        mons->stop_constricting_all();
+        mons->stop_directly_constricting_all();
         obvious_effect = true;
     }
 
@@ -1964,8 +1962,8 @@ bool napalm_monster(monster* mons, const actor *who, int levels, bool verbose)
     {
         if (verbose)
             simple_monster_message(*mons, " is covered in liquid flames!");
-        ASSERT(who);
-        behaviour_event(mons, ME_WHACK, who);
+        if (who)
+            behaviour_event(mons, ME_WHACK, who);
     }
 
     return new_flame.degree > old_flame.degree;
@@ -2027,7 +2025,7 @@ int silver_damages_victim(actor* victim, int damage, string &dmg_msg)
     {
         // For mutation damage, we want to count innate mutations for
         // demonspawn but not other species.
-        int multiplier = 5 * how_mutated(you.species == SP_DEMONSPAWN, true);
+        int multiplier = 5 * you.how_mutated(you.species == SP_DEMONSPAWN, true);
         if (multiplier == 0)
             return 0;
 
@@ -2308,6 +2306,10 @@ static void _unravelling_explode(bolt &beam)
 
 bool bolt::is_bouncy(dungeon_feature_type feat) const
 {
+    // Don't bounce off open sea.
+    if (feat_is_endless(feat))
+        return false;
+
     if (real_flavour == BEAM_CHAOS
         && feat_is_solid(feat))
     {
@@ -2686,9 +2688,6 @@ void bolt::affect_place_clouds()
     if (origin_spell == SPELL_POISONOUS_CLOUD)
         place_cloud(CLOUD_POISON, p, random2(5) + 3, agent());
 
-    if (origin_spell == SPELL_POISONOUS_CLOUD)
-        place_cloud(CLOUD_POISON, p, random2(2) + 1, agent());
-
     if (origin_spell == SPELL_HOLY_BREATH)
         place_cloud(CLOUD_HOLY, p, random2(4) + 2, agent());
 
@@ -2953,7 +2952,7 @@ bool bolt::harmless_to_player() const
 {
     dprf(DIAG_BEAM, "beam flavour: %d", flavour);
 
-    if (have_passive(passive_t::cloud_immunity) && is_big_cloud())
+    if (you.cloud_immune() && is_big_cloud())
         return true;
 
     switch (flavour)
@@ -2998,13 +2997,7 @@ bool bolt::harmless_to_player() const
         return you.res_petrify() || you.petrified();
 
     case BEAM_COLD:
-        return is_big_cloud() && you.mutation[MUT_FREEZING_CLOUD_IMMUNITY];
-
-#if TAG_MAJOR_VERSION == 34
-    case BEAM_FIRE:
-    case BEAM_STICKY_FLAME:
-        return you.species == SP_DJINNI;
-#endif
+        return is_big_cloud() && you.has_mutation(MUT_FREEZING_CLOUD_IMMUNITY);
 
     case BEAM_VIRULENCE:
         return player_res_poison(false) >= 3;
@@ -3291,7 +3284,7 @@ void bolt::affect_player_enchantment(bool resistible)
     }
 
     // Never affects the player.
-    if (flavour == BEAM_INFESTATION)
+    if (flavour == BEAM_INFESTATION || flavour == BEAM_VILE_CLUTCH)
         return;
 
     // You didn't resist it.
@@ -3334,7 +3327,6 @@ void bolt::affect_player_enchantment(bool resistible)
     case BEAM_HASTE:
         haste_player(40 + random2(ench_power));
         did_god_conduct(DID_HASTY, 10, blame_player);
-        contaminate_player(750 + random2(500), blame_player);
         obvious_effect = true;
         nasty = false;
         nice  = true;
@@ -3487,7 +3479,7 @@ void bolt::affect_player_enchantment(bool resistible)
         break;
 
     case BEAM_BERSERK:
-        you.go_berserk(blame_player, true);
+        you.go_berserk(blame_player);
         obvious_effect = true;
         break;
 
@@ -3566,7 +3558,7 @@ void bolt::affect_player_enchantment(bool resistible)
         if (!amount)
             break;
         mprf(MSGCH_WARN, "You feel your power leaking away.");
-        drain_mp(amount);
+        dec_mp(amount);
         if (agent() && (agent()->type == MONS_EYE_OF_DRAINING
                         || agent()->type == MONS_GHOST_MOTH))
         {
@@ -3791,7 +3783,7 @@ void bolt::affect_player()
             }
         }
 
-        if (you.mutation[MUT_JELLY_MISSILE]
+        if (you.has_mutation(MUT_JELLY_MISSILE)
             && you.hp < you.hp_max
             && !you.duration[DUR_DEATHS_DOOR]
             && item_is_jelly_edible(*item)
@@ -3816,9 +3808,11 @@ void bolt::affect_player()
     }
 
     // need to trigger qaz resists after reducing damage from ac/resists.
-    //    for some reason, strength 2 is the standard. This leads to qaz's resists triggering 2 in 5 times at max piety.
+    //    for some reason, strength 2 is the standard. This leads to qaz's
+    //    resists triggering 2 in 5 times at max piety.
     //    perhaps this should scale with damage?
-    // what to do for hybrid damage?  E.g. bolt of magma, icicle, poison arrow?  Right now just ignore the physical component.
+    // what to do for hybrid damage?  E.g. bolt of magma, icicle, poison arrow?
+    // Right now just ignore the physical component.
     // what about acid?
     you.expose_to_element(flavour, 2, false);
 
@@ -3828,12 +3822,15 @@ void bolt::affect_player()
     {
         mpr("The barbed spikes become lodged in your body.");
         if (!you.duration[DUR_BARBS])
-            you.set_duration(DUR_BARBS,  random_range(3, 6));
+            you.set_duration(DUR_BARBS, random_range(4, 8));
         else
             you.increase_duration(DUR_BARBS, random_range(2, 4), 12);
 
         if (you.attribute[ATTR_BARBS_POW])
-            you.attribute[ATTR_BARBS_POW] = min(6, you.attribute[ATTR_BARBS_POW]++);
+        {
+            you.attribute[ATTR_BARBS_POW] =
+                min(6, you.attribute[ATTR_BARBS_POW]++);
+        }
         else
             you.attribute[ATTR_BARBS_POW] = 4;
     }
@@ -4110,8 +4107,15 @@ void bolt::tracer_nonenchantment_affect_monster(monster* mon)
         }
         else
         {
-            friend_info.power
-                += 2 * final * mon->get_experience_level() / preac;
+            // Discourage summoned monsters firing on their summoner.
+            const monster* mon_source = agent()->as_monster();
+            if (mon_source && mon_source->summoner == mon->mid)
+                friend_info.power = 100;
+            else
+            {
+                friend_info.power
+                    += 2 * final * mon->get_experience_level() / preac;
+            }
             friend_info.count++;
         }
     }
@@ -4273,7 +4277,7 @@ static void _glaciate_freeze(monster* mon, killer_type englaciator,
     simple_monster_message(*mon, " is frozen into a solid block of ice!");
 
     // If the monster leaves a corpse when it dies, destroy the corpse.
-    item_def* corpse = monster_die(mon, englaciator, kindex);
+    item_def* corpse = monster_die(*mon, englaciator, kindex);
     if (corpse)
         destroy_item(corpse->index());
 
@@ -4860,7 +4864,7 @@ void bolt::affect_monster(monster* mon)
         {
             if (mon->attitude == ATT_FRIENDLY)
                 mon->attitude = ATT_HOSTILE;
-            monster_die(mon, KILL_MON, kindex);
+            monster_die(*mon, KILL_MON, kindex);
         }
         else
         {
@@ -4870,7 +4874,7 @@ void bolt::affect_monster(monster* mon)
                 ref_killer = KILL_YOU_MISSILE;
                 kindex = YOU_FAULTLESS;
             }
-            monster_die(mon, ref_killer, kindex);
+            monster_die(*mon, ref_killer, kindex);
         }
     }
 
@@ -4930,7 +4934,6 @@ bool bolt::has_saving_throw() const
     case BEAM_HEALING:
     case BEAM_INVISIBILITY:
     case BEAM_DISPEL_UNDEAD:
-    case BEAM_ENSLAVE_SOUL:
     case BEAM_BLINK_CLOSE:
     case BEAM_BLINK:
     case BEAM_BECKONING:
@@ -4943,6 +4946,7 @@ bool bolt::has_saving_throw() const
     case BEAM_UNRAVELLED_MAGIC:
     case BEAM_INFESTATION:
     case BEAM_IRRESISTIBLE_CONFUSION:
+    case BEAM_VILE_CLUTCH:
         return false;
     case BEAM_VULNERABILITY:
         return !one_chance_in(3);  // Ignores MR 1/3 of the time
@@ -4954,7 +4958,7 @@ bool bolt::has_saving_throw() const
 }
 
 bool ench_flavour_affects_monster(beam_type flavour, const monster* mon,
-                                          bool intrinsic_only)
+                                  bool intrinsic_only)
 {
     bool rc = true;
     switch (flavour)
@@ -4972,17 +4976,6 @@ bool ench_flavour_affects_monster(beam_type flavour, const monster* mon,
 
     case BEAM_POLYMORPH:
         rc = mon->can_polymorph();
-        break;
-
-    case BEAM_ENSLAVE_SOUL:
-        rc = (mon->holiness() & MH_NATURAL
-              || mon->holiness() & MH_DEMONIC
-              || mon->holiness() & MH_HOLY)
-             && !mon->is_summoned()
-             && !mons_enslaved_body_and_soul(*mon)
-             && mon->attitude != ATT_FRIENDLY
-             && mons_intel(*mon) >= I_HUMAN
-             && mon->type != MONS_PANDEMONIUM_LORD;
         break;
 
     case BEAM_DISPEL_UNDEAD:
@@ -5029,6 +5022,10 @@ bool ench_flavour_affects_monster(beam_type flavour, const monster* mon,
 
     case BEAM_INFESTATION:
         rc = mons_gives_xp(*mon, you) && !mon->has_ench(ENCH_INFESTATION);
+        break;
+
+    case BEAM_VILE_CLUTCH:
+        rc = !mons_aligned(&you, mon) && you.can_constrict(mon, false);
         break;
 
     default:
@@ -5182,19 +5179,6 @@ mon_resist_type bolt::apply_enchantment_to_monster(monster* mon)
             obvious_effect = true;
         mon->hurt(agent(), damage.roll());
         return MON_AFFECTED;
-
-    case BEAM_ENSLAVE_SOUL:
-    {
-        if (!ench_flavour_affects_monster(flavour, mon))
-            return MON_UNAFFECTED;
-
-        obvious_effect = true;
-        const int duration = you.skill_rdiv(SK_INVOCATIONS, 3, 4) + 2;
-        mon->add_ench(mon_enchant(ENCH_SOUL_RIPE, 0, agent(),
-                                  duration * BASELINE_DELAY));
-        simple_monster_message(*mon, "'s soul is now ripe for the taking.");
-        return MON_AFFECTED;
-    }
 
     case BEAM_PAIN:
     {
@@ -5580,6 +5564,16 @@ mon_resist_type bolt::apply_enchantment_to_monster(monster* mon)
         return MON_AFFECTED;
     }
 
+    case BEAM_VILE_CLUTCH:
+    {
+        const int dur = (4 + random2avg(div_rand_round(ench_power, 10), 2))
+            * BASELINE_DELAY;
+        dprf("Vile clutch duration: %d", dur);
+        mon->add_ench(mon_enchant(ENCH_VILE_CLUTCH, 0, &you, dur));
+        obvious_effect = true;
+        return MON_AFFECTED;
+    }
+
     default:
         break;
     }
@@ -5826,8 +5820,11 @@ bool bolt::explode(bool show_more, bool hole_in_the_middle)
         loudness = explosion_noise(r);
 
         // Not an "explosion", but still a bit noisy at the target location.
-        if (origin_spell == SPELL_INFESTATION)
-            loudness = spell_effect_noise(SPELL_INFESTATION);
+        if (origin_spell == SPELL_INFESTATION
+            || origin_spell == SPELL_BORGNJORS_VILE_CLUTCH)
+        {
+            loudness = spell_effect_noise(origin_spell);
+        }
 
         // Lee's Rapid Deconstruction can target the tiles on the map
         // boundary.
@@ -6061,8 +6058,8 @@ bool bolt::nasty_to(const monster* mon) const
         case BEAM_BECKONING:
             // Friendly and good neutral monsters don't mind being teleported.
             return !mon->wont_attack();
-        case BEAM_ENSLAVE_SOUL:
         case BEAM_INFESTATION:
+        case BEAM_VILE_CLUTCH:
         case BEAM_SLOW:
         case BEAM_PARALYSIS:
         case BEAM_DISPEL_UNDEAD:
@@ -6200,6 +6197,12 @@ actor* bolt::agent(bool ignore_reflection) const
             return &menv[YOU_FAULTLESS];
         nominal_source = reflector;
     }
+
+    // Check for whether this is actually a dith shadow, not you
+    if (monster* shadow = monster_at(you.pos()))
+        if (shadow->type == MONS_PLAYER_SHADOW && nominal_source == MID_PLAYER)
+            return shadow;
+
     if (YOU_KILL(nominal_ktype))
         return &you;
     else
@@ -6301,7 +6304,6 @@ static string _beam_type_name(beam_type type)
     case BEAM_MALMUTATE:             return "malmutation";
     case BEAM_ENSLAVE:               return "enslave";
     case BEAM_BANISH:                return "banishment";
-    case BEAM_ENSLAVE_SOUL:          return "enslave soul";
     case BEAM_PAIN:                  return "pain";
     case BEAM_AGONY:                 return "agony";
     case BEAM_DISPEL_UNDEAD:         return "dispel undead";
@@ -6339,6 +6341,7 @@ static string _beam_type_name(beam_type type)
     case BEAM_SHARED_PAIN:           return "shared pain";
     case BEAM_IRRESISTIBLE_CONFUSION:return "confusion";
     case BEAM_INFESTATION:           return "infestation";
+    case BEAM_VILE_CLUTCH:           return "vile clutch";
 
     case NUM_BEAMS:                  die("invalid beam type");
     }

@@ -67,7 +67,7 @@ static const vector<spell_type> spellbook_templates[] =
     SPELL_BLINK,
     SPELL_SHROUD_OF_GOLUBRIA,
     SPELL_BECKONING,
-    SPELL_PORTAL_PROJECTILE,
+    SPELL_GRAVITAS,
     SPELL_TELEPORT_OTHER,
     SPELL_GOLUBRIAS_PASSAGE,
 },
@@ -161,7 +161,6 @@ static const vector<spell_type> spellbook_templates[] =
     SPELL_VAMPIRIC_DRAINING,
     SPELL_REGENERATION,
     SPELL_ANIMATE_DEAD,
-    SPELL_CONTROL_UNDEAD,
 },
 
 {   // Book of Callings
@@ -217,19 +216,17 @@ static const vector<spell_type> spellbook_templates[] =
 {   // Book of Unlife
     SPELL_RECALL,
     SPELL_ANIMATE_DEAD,
-    SPELL_CONTROL_UNDEAD,
-    SPELL_CIGOTUVIS_EMBRACE,
+    SPELL_BORGNJORS_VILE_CLUTCH,
     SPELL_DEATH_CHANNEL,
     SPELL_SIMULACRUM,
 },
 
 #if TAG_MAJOR_VERSION == 34
 {   // Book of Control
-    SPELL_CONTROL_UNDEAD,
     SPELL_ENGLACIATION,
 },
 
-{   // Book of Battle (replacing Morphology)
+{   // Book of Battle
     SPELL_INFUSION,
     SPELL_SHROUD_OF_GOLUBRIA,
     SPELL_SONG_OF_SLAYING,
@@ -300,8 +297,8 @@ static const vector<spell_type> spellbook_templates[] =
 {   // Book of Debilitation
     SPELL_CORONA,
     SPELL_SLOW,
-    SPELL_GRAVITAS,
     SPELL_INNER_FLAME,
+    SPELL_PORTAL_PROJECTILE,
     SPELL_CAUSE_FEAR,
     SPELL_LEDAS_LIQUEFACTION,
 },
@@ -325,6 +322,7 @@ static const vector<spell_type> spellbook_templates[] =
 
 {   // Book of Dreams
     SPELL_HIBERNATION,
+    SPELL_BORGNJORS_VILE_CLUTCH,
     SPELL_SILENCE,
     SPELL_DARKNESS,
     SPELL_SHADOW_CREATURES,

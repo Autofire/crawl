@@ -3,8 +3,7 @@
  * @brief Library definitions for dlua.
 **/
 
-#ifndef L_LIBS_H
-#define L_LIBS_H
+#pragma once
 
 #include "clua.h"
 
@@ -73,6 +72,9 @@ void dluaopen_monsters(lua_State *ls);
 void dluaopen_you(lua_State *ls);
 void dluaopen_dgn(lua_State *ls);
 void dluaopen_colour(lua_State *ls);
+#ifdef WIZARD
+void dluaopen_wiz(lua_State *ls);
+#endif
 
 /*
  * Some shared helper functions.
@@ -83,5 +85,3 @@ int dgn_map_add_transform(lua_State *ls,
 
 struct monster_info;
 void lua_push_moninf(lua_State *ls, monster_info *mi);
-
-#endif
